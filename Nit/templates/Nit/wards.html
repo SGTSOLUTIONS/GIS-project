@@ -1,0 +1,1700 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Wards - GIS Survey{% endblock %}
+
+{% block content %}
+<div class="wards-page">
+    <!-- Premium Hero Section -->
+    <div class="wards-hero premium-hero">
+        <div class="hero-particles"></div>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-map-marked-alt"></i> Ward Management
+            </div>
+            <h1 class="hero-title">Wards &amp; <span>Coverage</span></h1>
+            <p class="hero-subtitle">Manage administrative boundaries and survey coverage areas across all wards</p>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-number">5</span>
+                    <span class="hero-stat-label">Total Wards</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number">49</span>
+                    <span class="hero-stat-label">Active Surveys</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number">94%</span>
+                    <span class="hero-stat-label">Coverage</span>
+                </div>
+                <div class="hero-stat-divider"></div>
+                <div class="hero-stat">
+                    <span class="hero-stat-number">1.2K</span>
+                    <span class="hero-stat-label">Parcels</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="premium-stats">
+        <div class="premium-stat-card" style="--accent: #1a8a7a;">
+            <div class="stat-icon-wrapper">
+                <i class="fas fa-vector-square"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">5</span>
+                <span class="stat-label">Total Wards</span>
+            </div>
+            <div class="stat-trend up">
+                <i class="fas fa-arrow-up"></i> 100%
+            </div>
+        </div>
+        <div class="premium-stat-card" style="--accent: #0f3b5e;">
+            <div class="stat-icon-wrapper">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">49</span>
+                <span class="stat-label">Total Surveys</span>
+            </div>
+            <div class="stat-trend up">
+                <i class="fas fa-arrow-up"></i> 12%
+            </div>
+        </div>
+        <div class="premium-stat-card" style="--accent: #e67e22;">
+            <div class="stat-icon-wrapper">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">1,284</span>
+                <span class="stat-label">Total Parcels</span>
+            </div>
+            <div class="stat-trend up">
+                <i class="fas fa-arrow-up"></i> 8%
+            </div>
+        </div>
+        <div class="premium-stat-card" style="--accent: #8e44ad;">
+            <div class="stat-icon-wrapper">
+                <i class="fas fa-percent"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">94%</span>
+                <span class="stat-label">Coverage</span>
+            </div>
+            <div class="stat-trend up">
+                <i class="fas fa-arrow-up"></i> 3%
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="wards-toolbar">
+        <div class="toolbar-left">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search wards..." id="wardSearch" onkeyup="filterWards()">
+            </div>
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="active">Active</button>
+                <button class="filter-btn" data-filter="pending">Pending</button>
+                <button class="filter-btn" data-filter="inactive">Inactive</button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <button class="toolbar-btn primary" onclick="showNotification('New ward creation form opened!')">
+                <i class="fas fa-plus"></i> Add Ward
+            </button>
+            <button class="toolbar-btn secondary" onclick="showNotification('Exporting ward data...')">
+                <i class="fas fa-download"></i>
+            </button>
+            <button class="toolbar-btn secondary" onclick="showNotification('Printing report...')">
+                <i class="fas fa-print"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Premium Wards Grid -->
+    <div class="premium-wards-grid" id="wardsGrid">
+        <!-- Ward 1 - Premium Card -->
+        <div class="premium-ward-card active" data-status="active">
+            <div class="card-glow"></div>
+            <div class="card-badge active">
+                <i class="fas fa-circle"></i> Active
+            </div>
+            <div class="card-number">01</div>
+            <div class="card-content">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #1a8a7a20, #1a8a7a10);">
+                        <i class="fas fa-map-pin" style="color: #1a8a7a;"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Central Ward</h3>
+                        <p class="card-location"><i class="fas fa-location-dot"></i> Downtown District</p>
+                    </div>
+                </div>
+                <p class="card-description">Mixed-use zone with residential, commercial, and civic buildings. High-density urban core.</p>
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <span class="card-stat-value">12</span>
+                        <span class="card-stat-label">Surveys</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">320</span>
+                        <span class="card-stat-label">Parcels</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">85%</span>
+                        <span class="card-stat-label">Occupancy</span>
+                    </div>
+                </div>
+                <div class="card-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 85%; background: linear-gradient(90deg, #1a8a7a, #2eccb0);"></div>
+                    </div>
+                    <span class="progress-label">85% Complete</span>
+                </div>
+                <div class="card-actions">
+                    <button class="card-btn primary" onclick="showNotification('Viewing Central Ward details...')">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="card-btn secondary" onclick="showNotification('Opening Central Ward map...')">
+                        <i class="fas fa-map"></i> Map
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ward 2 - Premium Card -->
+        <div class="premium-ward-card active" data-status="active">
+            <div class="card-glow"></div>
+            <div class="card-badge active">
+                <i class="fas fa-circle"></i> Active
+            </div>
+            <div class="card-number">02</div>
+            <div class="card-content">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #0f3b5e20, #0f3b5e10);">
+                        <i class="fas fa-map-pin" style="color: #0f3b5e;"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">North Ward</h3>
+                        <p class="card-location"><i class="fas fa-location-dot"></i> Residential District</p>
+                    </div>
+                </div>
+                <p class="card-description">Peaceful residential neighborhood with parks, schools, and community centers. Family-friendly zone.</p>
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <span class="card-stat-value">8</span>
+                        <span class="card-stat-label">Surveys</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">215</span>
+                        <span class="card-stat-label">Parcels</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">92%</span>
+                        <span class="card-stat-label">Occupancy</span>
+                    </div>
+                </div>
+                <div class="card-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 92%; background: linear-gradient(90deg, #0f3b5e, #1a5276);"></div>
+                    </div>
+                    <span class="progress-label">92% Complete</span>
+                </div>
+                <div class="card-actions">
+                    <button class="card-btn primary" onclick="showNotification('Viewing North Ward details...')">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="card-btn secondary" onclick="showNotification('Opening North Ward map...')">
+                        <i class="fas fa-map"></i> Map
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ward 3 - Premium Card -->
+        <div class="premium-ward-card active" data-status="active">
+            <div class="card-glow"></div>
+            <div class="card-badge active">
+                <i class="fas fa-circle"></i> Active
+            </div>
+            <div class="card-number">03</div>
+            <div class="card-content">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #e67e2220, #e67e2210);">
+                        <i class="fas fa-map-pin" style="color: #e67e22;"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">South Ward</h3>
+                        <p class="card-location"><i class="fas fa-location-dot"></i> Industrial District</p>
+                    </div>
+                </div>
+                <p class="card-description">Industrial hub with warehouses, factories, and logistics centers. Major employment zone.</p>
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <span class="card-stat-value">14</span>
+                        <span class="card-stat-label">Surveys</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">187</span>
+                        <span class="card-stat-label">Parcels</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">68%</span>
+                        <span class="card-stat-label">Occupancy</span>
+                    </div>
+                </div>
+                <div class="card-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 68%; background: linear-gradient(90deg, #e67e22, #f39c12);"></div>
+                    </div>
+                    <span class="progress-label">68% Complete</span>
+                </div>
+                <div class="card-actions">
+                    <button class="card-btn primary" onclick="showNotification('Viewing South Ward details...')">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="card-btn secondary" onclick="showNotification('Opening South Ward map...')">
+                        <i class="fas fa-map"></i> Map
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ward 4 - Premium Card -->
+        <div class="premium-ward-card pending" data-status="pending">
+            <div class="card-glow"></div>
+            <div class="card-badge pending">
+                <i class="fas fa-circle"></i> Pending
+            </div>
+            <div class="card-number">04</div>
+            <div class="card-content">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #8e44ad20, #8e44ad10);">
+                        <i class="fas fa-map-pin" style="color: #8e44ad;"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">East Ward</h3>
+                        <p class="card-location"><i class="fas fa-location-dot"></i> Commercial District</p>
+                    </div>
+                </div>
+                <p class="card-description">Emerging commercial zone with retail spaces, offices, and new developments.</p>
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <span class="card-stat-value">6</span>
+                        <span class="card-stat-label">Surveys</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">142</span>
+                        <span class="card-stat-label">Parcels</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">55%</span>
+                        <span class="card-stat-label">Occupancy</span>
+                    </div>
+                </div>
+                <div class="card-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 55%; background: linear-gradient(90deg, #8e44ad, #a569bd);"></div>
+                    </div>
+                    <span class="progress-label">55% Complete</span>
+                </div>
+                <div class="card-actions">
+                    <button class="card-btn primary" onclick="showNotification('Viewing East Ward details...')">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="card-btn secondary" onclick="showNotification('Opening East Ward map...')">
+                        <i class="fas fa-map"></i> Map
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ward 5 - Premium Card -->
+        <div class="premium-ward-card inactive" data-status="inactive">
+            <div class="card-glow"></div>
+            <div class="card-badge inactive">
+                <i class="fas fa-circle"></i> Inactive
+            </div>
+            <div class="card-number">05</div>
+            <div class="card-content">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #95a5a620, #95a5a610);">
+                        <i class="fas fa-map-pin" style="color: #95a5a6;"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">West Ward</h3>
+                        <p class="card-location"><i class="fas fa-location-dot"></i> Agricultural District</p>
+                    </div>
+                </div>
+                <p class="card-description">Agricultural zone with farmlands, rural properties, and open spaces.</p>
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <span class="card-stat-value">9</span>
+                        <span class="card-stat-label">Surveys</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">420</span>
+                        <span class="card-stat-label">Parcels</span>
+                    </div>
+                    <div class="card-stat">
+                        <span class="card-stat-value">45%</span>
+                        <span class="card-stat-label">Occupancy</span>
+                    </div>
+                </div>
+                <div class="card-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 45%; background: linear-gradient(90deg, #95a5a6, #bdc3c7);"></div>
+                    </div>
+                    <span class="progress-label">45% Complete</span>
+                </div>
+                <div class="card-actions">
+                    <button class="card-btn primary" onclick="showNotification('Viewing West Ward details...')">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                    <button class="card-btn secondary" onclick="showNotification('Opening West Ward map...')">
+                        <i class="fas fa-map"></i> Map
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Premium Table -->
+    <div class="premium-table-container">
+        <div class="table-header">
+            <h3><i class="fas fa-table"></i> Ward Summary</h3>
+            <div class="table-actions">
+                <span class="update-badge"><i class="fas fa-sync-alt"></i> Updated Today</span>
+                <button class="table-action-btn" onclick="showNotification('Exporting as CSV...')">
+                    <i class="fas fa-file-csv"></i>
+                </button>
+                <button class="table-action-btn" onclick="showNotification('Exporting as PDF...')">
+                    <i class="fas fa-file-pdf"></i>
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Ward</th>
+                        <th>Zone</th>
+                        <th>Surveys</th>
+                        <th>Parcels</th>
+                        <th>Occupancy</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ward-name">Ward 1</span></td>
+                        <td>Central</td>
+                        <td>12</td>
+                        <td>320</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 85%; background: linear-gradient(90deg, #1a8a7a, #2eccb0);"></div>
+                                <span>85%</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active">Active</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-icon" onclick="showNotification('Viewing Ward 1 details...')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Editing Ward 1...')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Deleting Ward 1...')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="ward-name">Ward 2</span></td>
+                        <td>North</td>
+                        <td>8</td>
+                        <td>215</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 92%; background: linear-gradient(90deg, #0f3b5e, #1a5276);"></div>
+                                <span>92%</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active">Active</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-icon" onclick="showNotification('Viewing Ward 2 details...')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Editing Ward 2...')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Deleting Ward 2...')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="ward-name">Ward 3</span></td>
+                        <td>South</td>
+                        <td>14</td>
+                        <td>187</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 68%; background: linear-gradient(90deg, #e67e22, #f39c12);"></div>
+                                <span>68%</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active">Active</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-icon" onclick="showNotification('Viewing Ward 3 details...')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Editing Ward 3...')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Deleting Ward 3...')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="ward-name">Ward 4</span></td>
+                        <td>East</td>
+                        <td>6</td>
+                        <td>142</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 55%; background: linear-gradient(90deg, #8e44ad, #a569bd);"></div>
+                                <span>55%</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge pending">Pending</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-icon" onclick="showNotification('Viewing Ward 4 details...')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Editing Ward 4...')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Deleting Ward 4...')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="ward-name">Ward 5</span></td>
+                        <td>West</td>
+                        <td>9</td>
+                        <td>420</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 45%; background: linear-gradient(90deg, #95a5a6, #bdc3c7);"></div>
+                                <span>45%</span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge inactive">Inactive</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-icon" onclick="showNotification('Viewing Ward 5 details...')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Editing Ward 5...')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-icon" onclick="showNotification('Deleting Ward 5...')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Toast -->
+<div class="notification-toast" id="notificationToast">
+    <div class="toast-icon">
+        <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="toast-content">
+        <div class="toast-title">Success</div>
+        <div class="toast-message" id="toastMessage">Action completed successfully!</div>
+    </div>
+    <button class="toast-close" onclick="closeToast()">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+
+<style>
+    /* ============================================
+       PREMIUM WARDS PAGE
+       ============================================ */
+    .wards-page {
+        flex: 1;
+        background: #f0f4f8;
+        padding-bottom: 40px;
+    }
+
+    /* ============================================
+       PREMIUM HERO SECTION
+       ============================================ */
+    .premium-hero {
+        background: linear-gradient(135deg, #0f3b5e 0%, #1a5276 50%, #1f6b8a 100%);
+        padding: 12px 12px 18px !important;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-particles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: 
+            radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.3), transparent),
+            radial-gradient(2px 2px at 40% 70%, rgba(255,255,255,0.2), transparent),
+            radial-gradient(2px 2px at 60% 20%, rgba(255,255,255,0.3), transparent),
+            radial-gradient(2px 2px at 80% 80%, rgba(255,255,255,0.2), transparent),
+            radial-gradient(1px 1px at 10% 50%, rgba(255,255,255,0.4), transparent),
+            radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.4), transparent);
+        background-size: 200px 200px;
+        animation: sparkle 8s linear infinite;
+    }
+
+    @keyframes sparkle {
+        0% { background-position: 0 0; }
+        100% { background-position: 200px 200px; }
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.12);
+        backdrop-filter: blur(10px);
+        padding: 6px 18px;
+        border-radius: 30px;
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.9);
+        border: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 16px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+
+    .hero-badge i {
+        font-size: 0.9rem;
+    }
+
+    .hero-title {
+        font-size: 2.8rem;
+        font-weight: 800;
+        color: white;
+        letter-spacing: -1px;
+        margin-bottom: 12px;
+        line-height: 1.2;
+    }
+
+    .hero-title span {
+        background: linear-gradient(135deg, #2eccb0, #1a8a7a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero-subtitle {
+        font-size: 1.1rem;
+        color: rgba(255,255,255,0.7);
+        max-width: 600px;
+        margin: 0 auto 30px;
+        line-height: 1.6;
+    }
+
+    .hero-stats {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .hero-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .hero-stat-number {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: white;
+        line-height: 1.2;
+    }
+
+    .hero-stat-label {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.6);
+        font-weight: 400;
+    }
+
+    .hero-stat-divider {
+        width: 1px;
+        height: 35px;
+        background: rgba(255,255,255,0.1);
+    }
+
+    /* ============================================
+       PREMIUM STATS CARDS
+       ============================================ */
+    .premium-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        padding: 24px 32px;
+        max-width: 1550px;
+        margin: -20px auto 0;
+        position: relative;
+        z-index: 3;
+    }
+
+    .premium-stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 4px 20px rgba(15, 59, 94, 0.06);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .premium-stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--accent);
+        opacity: 0.7;
+    }
+
+    .premium-stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 30px rgba(15, 59, 94, 0.1);
+    }
+
+    .stat-icon-wrapper {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .stat-content {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-dark);
+        line-height: 1.2;
+        display: block;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-gray);
+        font-weight: 500;
+    }
+
+    .stat-trend {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 20px;
+        background: rgba(26, 138, 122, 0.08);
+        color: #1a8a7a;
+    }
+
+    .stat-trend.up {
+        color: #1a8a7a;
+    }
+
+    .stat-trend i {
+        font-size: 0.6rem;
+    }
+
+    /* ============================================
+       WARDS TOOLBAR
+       ============================================ */
+    .wards-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding: 26px 38px 0 38px;
+        max-width: 1500px;
+        margin: 0 auto;
+    }
+
+    .toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .search-box {
+        position: relative;
+        background: white;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 59, 94, 0.06);
+        transition: all 0.3s ease;
+        min-width: 220px;
+    }
+
+    .search-box:focus-within {
+        border-color: #1a8a7a;
+        box-shadow: 0 0 0 4px rgba(26, 138, 122, 0.08);
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-gray);
+        font-size: 0.9rem;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 10px 14px 10px 42px;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-family: 'Inter', sans-serif;
+        background: transparent;
+        color: var(--text-dark);
+        outline: none;
+    }
+
+    .search-box input::placeholder {
+        color: var(--text-light);
+    }
+
+    .filter-group {
+        display: flex;
+        gap: 6px;
+        background: white;
+        padding: 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 59, 94, 0.06);
+    }
+
+    .filter-btn {
+        padding: 6px 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        font-family: 'Inter', sans-serif;
+        color: var(--text-gray);
+        background: transparent;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .filter-btn:hover {
+        background: rgba(15, 59, 94, 0.04);
+    }
+
+    .filter-btn.active {
+        background: linear-gradient(135deg, #1a8a7a, #2eccb0);
+        color: white;
+        box-shadow: 0 4px 12px rgba(26, 138, 122, 0.2);
+    }
+
+    .toolbar-right {
+        display: flex;
+        gap: 8px;
+    }
+
+    .toolbar-btn {
+        padding: 10px 18px;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .toolbar-btn.primary {
+        background: linear-gradient(135deg, #1a8a7a, #2eccb0);
+        color: white;
+        box-shadow: 0 4px 16px rgba(26, 138, 122, 0.2);
+    }
+
+    .toolbar-btn.primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(26, 138, 122, 0.3);
+    }
+
+    .toolbar-btn.secondary {
+        background: white;
+        color: var(--text-gray);
+        border: 1px solid rgba(15, 59, 94, 0.06);
+    }
+
+    .toolbar-btn.secondary:hover {
+        background: rgba(15, 59, 94, 0.04);
+        transform: translateY(-2px);
+    }
+
+    /* ============================================
+       PREMIUM WARDS GRID
+       ============================================ */
+    .premium-wards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 24px;
+        padding: 24px 32px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .premium-ward-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        box-shadow: 0 4px 20px rgba(15, 59, 94, 0.02);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+    }
+
+    .premium-ward-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 48px rgba(15, 59, 94, 0.08);
+    }
+
+    .card-glow {
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle, rgba(26, 138, 122, 0.02), transparent 70%);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+    }
+
+    .premium-ward-card:hover .card-glow {
+        opacity: 1;
+    }
+
+    .card-badge {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        z-index: 2;
+    }
+
+    .card-badge i {
+        font-size: 0.5rem;
+    }
+
+    .card-badge.active {
+        background: rgba(26, 138, 122, 0.08);
+        color: #1a8a7a;
+    }
+
+    .card-badge.pending {
+        background: rgba(243, 156, 18, 0.08);
+        color: #f39c12;
+    }
+
+    .card-badge.inactive {
+        background: rgba(149, 165, 166, 0.08);
+        color: #95a5a6;
+    }
+
+    .card-number {
+        position: absolute;
+        top: -10px;
+        left: -5px;
+        font-size: 6rem;
+        font-weight: 900;
+        color: rgba(15, 59, 94, 0.03);
+        letter-spacing: -5px;
+        pointer-events: none;
+        line-height: 1;
+    }
+
+    .card-content {
+        padding: 28px 24px 24px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 12px;
+    }
+
+    .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin: 0;
+    }
+
+    .card-location {
+        font-size: 0.75rem;
+        color: var(--text-gray);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .card-location i {
+        font-size: 0.7rem;
+        color: var(--secondary);
+    }
+
+    .card-description {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin-bottom: 16px;
+    }
+
+    .card-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .card-stat {
+        background: rgba(15, 59, 94, 0.02);
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid rgba(15, 59, 94, 0.03);
+    }
+
+    .card-stat-value {
+        display: block;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-dark);
+    }
+
+    .card-stat-label {
+        font-size: 0.7rem;
+        color: var(--text-gray);
+        font-weight: 500;
+    }
+
+    .card-progress {
+        margin-bottom: 16px;
+    }
+
+    .progress-track {
+        height: 6px;
+        background: rgba(15, 59, 94, 0.04);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 4px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 1s ease;
+    }
+
+    .progress-label {
+        font-size: 0.7rem;
+        color: var(--text-gray);
+    }
+
+    .card-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .card-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        justify-content: center;
+    }
+
+    .card-btn.primary {
+        background: rgba(15, 59, 94, 0.04);
+        color: var(--text-dark);
+        border: 1px solid rgba(15, 59, 94, 0.06);
+    }
+
+    .card-btn.primary:hover {
+        background: rgba(15, 59, 94, 0.08);
+    }
+
+    .card-btn.secondary {
+        background: rgba(26, 138, 122, 0.06);
+        color: #1a8a7a;
+        border: 1px solid rgba(26, 138, 122, 0.08);
+    }
+
+    .card-btn.secondary:hover {
+        background: rgba(26, 138, 122, 0.12);
+    }
+
+    /* ============================================
+       PREMIUM TABLE
+       ============================================ */
+    .premium-table-container {
+        padding: 0 32px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .table-header h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .table-header h3 i {
+        color: var(--secondary);
+    }
+
+    .table-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .update-badge {
+        font-size: 0.8rem;
+        color: var(--text-gray);
+        background: white;
+        padding: 6px 16px;
+        border-radius: 20px;
+        border: 1px solid rgba(15, 59, 94, 0.04);
+    }
+
+    .update-badge i {
+        color: var(--secondary);
+        margin-right: 4px;
+    }
+
+    .table-action-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 10px;
+        background: white;
+        color: var(--text-gray);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        font-size: 0.9rem;
+    }
+
+    .table-action-btn:hover {
+        background: rgba(15, 59, 94, 0.04);
+        transform: translateY(-2px);
+    }
+
+    .premium-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(15, 59, 94, 0.02);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+    }
+
+    .premium-table thead {
+        background: rgba(15, 59, 94, 0.02);
+    }
+
+    .premium-table th {
+        padding: 14px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-dark);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid rgba(15, 59, 94, 0.04);
+    }
+
+    .premium-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(15, 59, 94, 0.02);
+        color: var(--text-gray);
+        font-size: 0.9rem;
+    }
+
+    .premium-table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .premium-table tbody tr:hover {
+        background: rgba(15, 59, 94, 0.01);
+    }
+
+    .premium-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .ward-name {
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .progress-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 120px;
+    }
+
+    .progress-bar .progress-fill {
+        height: 5px;
+        border-radius: 10px;
+        flex: 1;
+        min-width: 60px;
+    }
+
+    .progress-bar span {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-gray);
+        min-width: 36px;
+    }
+
+    .status-badge {
+        padding: 4px 14px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .status-badge.active {
+        background: rgba(26, 138, 122, 0.08);
+        color: #1a8a7a;
+    }
+
+    .status-badge.pending {
+        background: rgba(243, 156, 18, 0.08);
+        color: #f39c12;
+    }
+
+    .status-badge.inactive {
+        background: rgba(149, 165, 166, 0.08);
+        color: #95a5a6;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 6px;
+    }
+
+    .action-icon {
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-gray);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-icon:hover {
+        background: rgba(15, 59, 94, 0.04);
+        color: var(--primary);
+    }
+
+    .action-icon:hover .fa-trash {
+        color: #e74c3c;
+    }
+
+    /* ============================================
+       NOTIFICATION TOAST
+       ============================================ */
+    .notification-toast {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: white;
+        border-radius: 16px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 8px 40px rgba(15, 59, 94, 0.12);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 9999;
+        max-width: 420px;
+    }
+
+    .notification-toast.show {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    .toast-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(26, 138, 122, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1a8a7a;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-dark);
+    }
+
+    .toast-message {
+        font-size: 0.85rem;
+        color: var(--text-gray);
+        margin-top: 2px;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        font-size: 1rem;
+        transition: color 0.3s ease;
+        padding: 4px;
+    }
+
+    .toast-close:hover {
+        color: var(--text-dark);
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (max-width: 1024px) {
+        .premium-wards-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .premium-hero {
+            padding: 30px 20px 24px;
+        }
+
+        .hero-title {
+            font-size: 2rem;
+        }
+
+        .hero-subtitle {
+            font-size: 0.95rem;
+        }
+
+        .hero-stats {
+            gap: 12px;
+        }
+
+        .hero-stat-number {
+            font-size: 1.3rem;
+        }
+
+        .premium-stats {
+            padding: 16px 20px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: -12px;
+        }
+
+        .wards-toolbar {
+            padding: 16px 20px 0 20px;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .toolbar-left {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .search-box {
+            min-width: auto;
+        }
+
+        .filter-group {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .toolbar-right {
+            justify-content: center;
+        }
+
+        .premium-wards-grid {
+            padding: 16px 20px;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .premium-table-container {
+            padding: 0 20px;
+        }
+
+        .table-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .card-stats {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .notification-toast {
+            bottom: 16px;
+            right: 16px;
+            left: 16px;
+            max-width: none;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .premium-hero {
+            padding: 20px 16px 18px;
+        }
+
+        .hero-title {
+            font-size: 1.5rem;
+        }
+
+        .hero-subtitle {
+            font-size: 0.85rem;
+        }
+
+        .hero-badge {
+            font-size: 0.7rem;
+            padding: 4px 14px;
+        }
+
+        .hero-stat-number {
+            font-size: 1.1rem;
+        }
+
+        .hero-stat-label {
+            font-size: 0.7rem;
+        }
+
+        .hero-stat-divider {
+            height: 25px;
+        }
+
+        .premium-stats {
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 12px 16px;
+        }
+
+        .premium-stat-card {
+            padding: 14px 16px;
+            gap: 12px;
+        }
+
+        .stat-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            font-size: 0.9rem;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+        }
+
+        .wards-toolbar {
+            padding: 12px 16px 0 16px;
+        }
+
+        .filter-btn {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+        }
+
+        .toolbar-btn {
+            font-size: 0.75rem;
+            padding: 8px 14px;
+        }
+
+        .premium-wards-grid {
+            padding: 12px 16px;
+            gap: 12px;
+        }
+
+        .card-content {
+            padding: 20px 16px 16px;
+        }
+
+        .card-title {
+            font-size: 0.95rem;
+        }
+
+        .card-description {
+            font-size: 0.8rem;
+        }
+
+        .card-stats {
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+        }
+
+        .card-stat {
+            padding: 6px 8px;
+        }
+
+        .card-stat-value {
+            font-size: 0.9rem;
+        }
+
+        .card-stat-label {
+            font-size: 0.6rem;
+        }
+
+        .card-actions {
+            flex-direction: column;
+        }
+
+        .premium-table-container {
+            padding: 0 16px;
+        }
+
+        .premium-table th,
+        .premium-table td {
+            padding: 10px 12px;
+            font-size: 0.8rem;
+        }
+
+        .progress-bar {
+            min-width: 80px;
+        }
+
+        .action-buttons {
+            gap: 4px;
+        }
+
+        .action-icon {
+            width: 28px;
+            height: 28px;
+            font-size: 0.75rem;
+        }
+
+        .card-number {
+            font-size: 4rem;
+        }
+
+        .notification-toast {
+            padding: 12px 16px;
+        }
+
+        .toast-icon {
+            width: 32px;
+            height: 32px;
+            font-size: 0.9rem;
+        }
+    }
+</style>
+
+<script>
+    // Filter wards by status
+    function filterWards() {
+        const searchInput = document.getElementById('wardSearch');
+        const searchTerm = searchInput.value.toLowerCase();
+        const cards = document.querySelectorAll('.premium-ward-card');
+        
+        cards.forEach(card => {
+            const title = card.querySelector('.card-title').textContent.toLowerCase();
+            const description = card.querySelector('.card-description').textContent.toLowerCase();
+            const location = card.querySelector('.card-location').textContent.toLowerCase();
+            
+            if (title.includes(searchTerm) || description.includes(searchTerm) || location.includes(searchTerm)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active class from all buttons
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const filter = this.dataset.filter;
+            const cards = document.querySelectorAll('.premium-ward-card');
+            
+            cards.forEach(card => {
+                if (filter === 'all' || card.dataset.status === filter) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Notification toast
+    function showNotification(message) {
+        const toast = document.getElementById('notificationToast');
+        const toastMessage = document.getElementById('toastMessage');
+        toastMessage.textContent = message;
+        toast.classList.add('show');
+        
+        // Auto hide after 3 seconds
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => {
+            closeToast();
+        }, 3000);
+    }
+
+    function closeToast() {
+        const toast = document.getElementById('notificationToast');
+        toast.classList.remove('show');
+    }
+
+    // Animate progress bars on scroll
+    document.addEventListener('DOMContentLoaded', function() {
+        const progressBars = document.querySelectorAll('.progress-fill');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const bar = entry.target;
+                    const width = bar.style.width;
+                    bar.style.width = '0%';
+                    setTimeout(() => {
+                        bar.style.width = width;
+                    }, 100);
+                }
+            });
+        }, { threshold: 0.5 });
+
+        progressBars.forEach(bar => observer.observe(bar));
+    });
+</script>
+{% endblock %}

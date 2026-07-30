@@ -1,0 +1,17 @@
+﻿*.pyc
+__pycache__/
+db.sqlite3
+.env
+*.log
+toggleClustering*
+.DS_Store
+media/
+staticfiles/
+.idea/
+.vscode/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/

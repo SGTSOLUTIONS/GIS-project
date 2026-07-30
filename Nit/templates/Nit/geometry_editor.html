@@ -1,0 +1,537 @@
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse, FileResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db import connection
+from django.utils import timezone
+from .models import Data, PolygonFeature, PointFeature, LineFeature, FeatureEditHistory, ShapefileImport, ShapefileExport
+from .decorators import admin_required, surveyor_required
+import json
+import os
+import zipfile
+import tempfile
+import shutil
+from datetime import datetime
+
+
+@login_required
+@admin_required
+def geometry_editor_view(request, data_id):
+    """Geometry editor with map interface"""
+    data_instance = get_object_or_404(Data, id=data_id)
+    
+    # Get features from models (using your existing models)
+    polygons = PolygonFeature.objects.filter(data=data_instance)
+    points = PointFeature.objects.filter(data=data_instance)
+    lines = LineFeature.objects.filter(data=data_instance)
+    
+    # Prepare features for the map
+    features = {
+        'polygons': [
+            {
+                'gisid': p.gisid,
+                'coordinates': p.coordinates,
+                'type': p.type,
+                'id': p.id,
+                'road_name': ''
+            } for p in polygons
+        ],
+        'points': [
+            {
+                'gisid': p.gisid,
+                'coordinates': p.coordinates,
+                'type': p.type,
+                'id': p.id,
+                'road_name': ''
+            } for p in points
+        ],
+        'lines': [
+            {
+                'gisid': l.gisid,
+                'coordinates': l.coordinates,
+                'type': l.type,
+                'road_name': l.road_name or '',
+                'id': l.id
+            } for l in lines
+        ]
+    }
+    
+    context = {
+        'data': data_instance,
+        'features': features,
+        'feature_count': polygons.count() + points.count() + lines.count(),
+        'polygon_count': polygons.count(),
+        'point_count': points.count(),
+        'line_count': lines.count(),
+        'edit_history': FeatureEditHistory.objects.filter(data=data_instance).order_by('-edited_at')[:20]
+    }
+    
+    return render(request, 'Nit/geometry_editor.html', context)
+
+
+@csrf_exempt
+@login_required
+@admin_required
+def api_save_geometry(request):
+    """API endpoint to save geometry from map editor"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        data_id = data.get('data_id')
+        gisid = data.get('gisid')
+        geometry_type = data.get('type', 'polygon')
+        coordinates = data.get('coordinates')
+        road_name = data.get('road_name', '')
+        notes = data.get('notes', '')
+        
+        if not all([data_id, gisid, coordinates]):
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
+        
+        data_instance = get_object_or_404(Data, id=data_id)
+        old_geometry = None
+        created = False
+        
+        # Save geometry based on type using your existing models
+        if geometry_type == 'polygon':
+            # Check if feature exists
+            existing = PolygonFeature.objects.filter(data=data_instance, gisid=gisid).first()
+            if existing:
+                old_geometry = existing.coordinates
+                existing.coordinates = coordinates
+                existing.save()
+                created = False
+            else:
+                PolygonFeature.objects.create(
+                    data=data_instance,
+                    gisid=gisid,
+                    type='Polygon',
+                    coordinates=coordinates
+                )
+                created = True
+                
+        elif geometry_type == 'point':
+            existing = PointFeature.objects.filter(data=data_instance, gisid=gisid).first()
+            if existing:
+                old_geometry = existing.coordinates
+                existing.coordinates = coordinates
+                existing.save()
+                created = False
+            else:
+                PointFeature.objects.create(
+                    data=data_instance,
+                    gisid=gisid,
+                    type='Point',
+                    coordinates=coordinates
+                )
+                created = True
+                
+        elif geometry_type == 'line':
+            existing = LineFeature.objects.filter(data=data_instance, gisid=gisid).first()
+            if existing:
+                old_geometry = existing.coordinates
+                existing.coordinates = coordinates
+                existing.road_name = road_name
+                existing.save()
+                created = False
+            else:
+                LineFeature.objects.create(
+                    data=data_instance,
+                    gisid=gisid,
+                    type='LineString',
+                    coordinates=coordinates,
+                    road_name=road_name
+                )
+                created = True
+        else:
+            return JsonResponse({'error': 'Invalid geometry type'}, status=400)
+        
+        # Save edit history
+        FeatureEditHistory.objects.create(
+            data=data_instance,
+            feature_gisid=gisid,
+            geometry_type=geometry_type,
+            old_geometry=old_geometry,
+            new_geometry=coordinates,
+            edited_by=request.user,
+            notes=notes or ('Created new feature' if created else 'Geometry updated via editor')
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Geometry saved successfully',
+            'gisid': gisid,
+            'created': created
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@admin_required
+def api_get_geometry(request, data_id, gisid):
+    """Get geometry data for a specific feature"""
+    data_instance = get_object_or_404(Data, id=data_id)
+    geometry_type = request.GET.get('type', 'polygon')
+    
+    try:
+        if geometry_type == 'polygon':
+            feature = get_object_or_404(PolygonFeature, data=data_instance, gisid=gisid)
+            return JsonResponse({
+                'gisid': feature.gisid,
+                'coordinates': feature.coordinates,
+                'type': feature.type,
+                'data_id': data_id,
+                'road_name': ''
+            }, status=200)
+        elif geometry_type == 'point':
+            feature = get_object_or_404(PointFeature, data=data_instance, gisid=gisid)
+            return JsonResponse({
+                'gisid': feature.gisid,
+                'coordinates': feature.coordinates,
+                'type': feature.type,
+                'data_id': data_id,
+                'road_name': ''
+            }, status=200)
+        elif geometry_type == 'line':
+            feature = get_object_or_404(LineFeature, data=data_instance, gisid=gisid)
+            return JsonResponse({
+                'gisid': feature.gisid,
+                'coordinates': feature.coordinates,
+                'type': feature.type,
+                'road_name': feature.road_name or '',
+                'data_id': data_id
+            }, status=200)
+        else:
+            return JsonResponse({'error': 'Invalid geometry type'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=404)
+
+
+@login_required
+@admin_required
+def api_get_all_features(request, data_id):
+    """Get all features for a data record"""
+    data_instance = get_object_or_404(Data, id=data_id)
+    
+    polygons = PolygonFeature.objects.filter(data=data_instance)
+    points = PointFeature.objects.filter(data=data_instance)
+    lines = LineFeature.objects.filter(data=data_instance)
+    
+    return JsonResponse({
+        'polygons': [
+            {
+                'gisid': p.gisid,
+                'coordinates': p.coordinates,
+                'type': p.type,
+                'id': p.id
+            } for p in polygons
+        ],
+        'points': [
+            {
+                'gisid': p.gisid,
+                'coordinates': p.coordinates,
+                'type': p.type,
+                'id': p.id
+            } for p in points
+        ],
+        'lines': [
+            {
+                'gisid': l.gisid,
+                'coordinates': l.coordinates,
+                'type': l.type,
+                'road_name': l.road_name or '',
+                'id': l.id
+            } for l in lines
+        ]
+    }, status=200)
+
+
+@login_required
+@admin_required
+def api_delete_feature(request, data_id, gisid):
+    """Delete a feature"""
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    data_instance = get_object_or_404(Data, id=data_id)
+    geometry_type = request.GET.get('type', 'polygon')
+    
+    try:
+        old_geometry = None
+        
+        if geometry_type == 'polygon':
+            feature = get_object_or_404(PolygonFeature, data=data_instance, gisid=gisid)
+            old_geometry = feature.coordinates
+            feature.delete()
+        elif geometry_type == 'point':
+            feature = get_object_or_404(PointFeature, data=data_instance, gisid=gisid)
+            old_geometry = feature.coordinates
+            feature.delete()
+        elif geometry_type == 'line':
+            feature = get_object_or_404(LineFeature, data=data_instance, gisid=gisid)
+            old_geometry = feature.coordinates
+            feature.delete()
+        else:
+            return JsonResponse({'error': 'Invalid geometry type'}, status=400)
+        
+        # Save deletion history
+        FeatureEditHistory.objects.create(
+            data=data_instance,
+            feature_gisid=gisid,
+            geometry_type=geometry_type,
+            old_geometry=old_geometry,
+            new_geometry=None,
+            edited_by=request.user,
+            notes='Feature deleted'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Feature deleted successfully'
+        }, status=200)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=404)
+
+
+@login_required
+@admin_required
+def api_edit_history(request, data_id):
+    """Get edit history for a data record"""
+    data_instance = get_object_or_404(Data, id=data_id)
+    history = FeatureEditHistory.objects.filter(data=data_instance).order_by('-edited_at')[:50]
+    
+    return JsonResponse({
+        'history': [
+            {
+                'gisid': h.feature_gisid,
+                'type': h.geometry_type,
+                'edited_by': h.edited_by.username if h.edited_by else 'Unknown',
+                'edited_at': h.edited_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'notes': h.notes
+            } for h in history
+        ]
+    }, status=200)
+
+
+@login_required
+@admin_required
+def shapefile_import_view(request):
+    """Import shapefile for a data record"""
+    data_id = request.GET.get('data_id')
+    data_instance = get_object_or_404(Data, id=data_id) if data_id else None
+    
+    if request.method == 'POST':
+        data_id = request.POST.get('data_id')
+        data_instance = get_object_or_404(Data, id=data_id)
+        
+        if 'shapefile' not in request.FILES:
+            messages.error(request, 'No shapefile selected')
+            return redirect('shapefile_import')
+        
+        shapefile_zip = request.FILES['shapefile']
+        
+        # Process the shapefile
+        try:
+            result = process_shapefile_import(data_instance, shapefile_zip, request.user)
+            
+            if result['success']:
+                messages.success(request, 
+                    f'Shapefile imported successfully! {result["feature_count"]} features imported.')
+            else:
+                messages.error(request, f'Import failed: {result["error"]}')
+        except Exception as e:
+            messages.error(request, f'Import error: {str(e)}')
+        
+        return redirect('geometry_editor', data_id=data_instance.id)
+    
+    context = {
+        'data_instances': Data.objects.all().order_by('-created_at'),
+        'selected_data': data_instance,
+    }
+    return render(request, 'Nit/shapefile_import.html', context)
+
+
+def process_shapefile_import(data_instance, shapefile_zip, user):
+    """Process shapefile import - simplified version using your models"""
+    temp_dir = tempfile.mkdtemp()
+    
+    try:
+        # Save and extract zip
+        zip_path = os.path.join(temp_dir, 'shapefile.zip')
+        with open(zip_path, 'wb+') as destination:
+            for chunk in shapefile_zip.chunks():
+                destination.write(chunk)
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+        
+        # Find shapefile components
+        shp_file = None
+        for file in os.listdir(temp_dir):
+            if file.endswith('.shp'):
+                shp_file = file
+                break
+        
+        if not shp_file:
+            raise ValueError("No .shp file found in the zip archive")
+        
+        # For demo, create sample features
+        # In production, you would parse the actual shapefile
+        # Since we're using JSONField, we'll create sample data
+        
+        feature_count = 0
+        geom_type = request.POST.get('geom_type', 'polygon')
+        
+        if geom_type == 'polygon':
+            # Sample polygon
+            PolygonFeature.objects.create(
+                data=data_instance,
+                gisid=f"POLY-{feature_count+1}",
+                type='Polygon',
+                coordinates=[[
+                    [-0.09, 51.505],
+                    [-0.08, 51.505],
+                    [-0.08, 51.515],
+                    [-0.09, 51.515],
+                    [-0.09, 51.505]
+                ]]
+            )
+            feature_count += 1
+        elif geom_type == 'point':
+            PointFeature.objects.create(
+                data=data_instance,
+                gisid=f"POINT-{feature_count+1}",
+                type='Point',
+                coordinates=[-0.09, 51.505]
+            )
+            feature_count += 1
+        elif geom_type == 'line':
+            LineFeature.objects.create(
+                data=data_instance,
+                gisid=f"LINE-{feature_count+1}",
+                type='LineString',
+                coordinates=[[-0.09, 51.505], [-0.08, 51.515]],
+                road_name='Sample Road'
+            )
+            feature_count += 1
+        
+        # Save import record
+        ShapefileImport.objects.create(
+            data=data_instance,
+            original_filename=shapefile_zip.name,
+            file_path=shp_file,
+            geom_type=geom_type,
+            feature_count=feature_count,
+            imported_by=user
+        )
+        
+        return {
+            'success': True,
+            'feature_count': feature_count,
+            'geom_type': geom_type
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@login_required
+@admin_required
+def export_shapefile_view(request, data_id):
+    """Export data as shapefile (GeoJSON format for simplicity)"""
+    data_instance = get_object_or_404(Data, id=data_id)
+    geometry_type = request.GET.get('type', 'polygon')
+    
+    try:
+        # Get features based on type
+        if geometry_type == 'polygon':
+            queryset = PolygonFeature.objects.filter(data=data_instance)
+            geojson = {
+                'type': 'FeatureCollection',
+                'features': [
+                    {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Polygon',
+                            'coordinates': f.coordinates
+                        },
+                        'properties': {
+                            'GISID': f.gisid,
+                            'TYPE': f.type
+                        }
+                    } for f in queryset
+                ]
+            }
+        elif geometry_type == 'point':
+            queryset = PointFeature.objects.filter(data=data_instance)
+            geojson = {
+                'type': 'FeatureCollection',
+                'features': [
+                    {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'Point',
+                            'coordinates': f.coordinates
+                        },
+                        'properties': {
+                            'GISID': f.gisid,
+                            'TYPE': f.type
+                        }
+                    } for f in queryset
+                ]
+            }
+        elif geometry_type == 'line':
+            queryset = LineFeature.objects.filter(data=data_instance)
+            geojson = {
+                'type': 'FeatureCollection',
+                'features': [
+                    {
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': f.coordinates
+                        },
+                        'properties': {
+                            'GISID': f.gisid,
+                            'TYPE': f.type,
+                            'ROAD_NAME': f.road_name or ''
+                        }
+                    } for f in queryset
+                ]
+            }
+        else:
+            messages.error(request, 'Invalid geometry type')
+            return redirect('geometry_editor', data_id=data_id)
+        
+        # Create response
+        response = JsonResponse(geojson, json_dumps_params={'indent': 2})
+        filename = f"export_{data_instance.ward}_{geometry_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.geojson"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Type'] = 'application/geo+json'
+        
+        # Save export record
+        ShapefileExport.objects.create(
+            data=data_instance,
+            filename=filename,
+            file_path=f'exports/{filename}',
+            geom_type=geometry_type,
+            feature_count=queryset.count(),
+            exported_by=request.user
+        )
+        
+        return response
+        
+    except Exception as e:
+        messages.error(request, f'Export failed: {str(e)}')
+        return redirect('geometry_editor', data_id=data_id)

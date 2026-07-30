@@ -1,0 +1,237 @@
+{% extends 'Nit/base.html' %}
+{% load static %}
+
+{% block title %}Create Surveyor - GIS Survey{% endblock %}
+
+{% block content %}
+<div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+    <h2 style="color: #0f3b5e; margin-bottom: 20px;">
+        <i class="fas fa-user-plus" style="color: #1a8a7a;"></i> Create Surveyor
+    </h2>
+
+    <div style="background: white; padding: 30px; border-radius: 12px; border: 1px solid #eee;">
+        <form id="surveyorForm" method="POST" novalidate>
+            {% csrf_token %}
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">Name <span style="color: red;">*</span></label>
+                <input type="text" id="name" name="name" style="width: 100%; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;" placeholder="Enter full name" required>
+                <div id="nameError" style="color: red; font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">Email <span style="color: red;">*</span></label>
+                <input type="email" id="email" name="email" style="width: 100%; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;" placeholder="Enter email address" required>
+                <div id="emailError" style="color: red; font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">Mobile <span style="color: red;">*</span></label>
+                <input type="text" id="mobile" name="mobile" style="width: 100%; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box;" placeholder="Enter mobile number" required>
+                <div id="mobileError" style="color: red; font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">Password <span style="color: red;">*</span></label>
+                <div style="position: relative;">
+                    <input type="password" id="password" name="password" style="width: 100%; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; padding-right: 46px;" placeholder="Enter password" required>
+                    <button type="button" onclick="togglePassword('password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #888;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div id="passwordError" style="color: red; font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem;">Confirm Password <span style="color: red;">*</span></label>
+                <div style="position: relative;">
+                    <input type="password" id="confirm_password" name="confirm_password" style="width: 100%; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; padding-right: 46px;" placeholder="Confirm password" required>
+                    <button type="button" onclick="togglePassword('confirm_password')" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #888;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div id="confirm_passwordError" style="color: red; font-size: 0.8rem; margin-top: 4px; display: none;"></div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                    <input type="checkbox" id="is_active" name="is_active" checked>
+                    Active
+                </label>
+                <small style="color: #888; font-size: 0.75rem; display: block; margin-left: 28px;">Uncheck to deactivate this surveyor</small>
+            </div>
+
+            <div style="display: flex; gap: 12px; padding-top: 20px; border-top: 1px solid #eee;">
+                <button type="submit" id="submitBtn" style="padding: 10px 24px; background: linear-gradient(135deg, #1a8a7a, #2eccb0); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                    <i class="fas fa-save"></i> Create Surveyor
+                </button>
+                <a href="{% url 'admin_surveyors' %}" style="padding: 10px 24px; background: #f0f0f0; color: #555; border: 2px solid #ddd; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.9rem;">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    console.log('✅ Form ready!');
+    
+    // Form submit
+    $('#surveyorForm').on('submit', function(e) {
+        e.preventDefault();
+        console.log('✅ Form submitted!');
+        
+        // Clear errors
+        $('input').css('border-color', '#ddd');
+        $('.error-message').hide().text('');
+        
+        // Get form data
+        const formData = new FormData(this);
+        
+        // Validate
+        let hasError = false;
+        const fields = ['name', 'email', 'mobile', 'password', 'confirm_password'];
+        
+        fields.forEach(function(field) {
+            const value = formData.get(field);
+            if (!value || value.trim() === '') {
+                $('#' + field).css('border-color', 'red');
+                $('#' + field + 'Error').show().text(field.replace('_', ' ') + ' is required');
+                hasError = true;
+            }
+        });
+        
+        const pass = formData.get('password');
+        const confirm = formData.get('confirm_password');
+        if (pass && confirm && pass !== confirm) {
+            $('#confirm_password').css('border-color', 'red');
+            $('#confirm_passwordError').show().text('Passwords do not match');
+            hasError = true;
+        }
+        
+        if (hasError) return;
+        
+        // Disable button
+        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+        
+        // Send AJAX
+        $.ajax({
+            url: window.location.href,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            },
+            success: function(response) {
+            
+    if (response.success) {
+        showToast(response.message, 'success');
+        $('#surveyorForm')[0].reset();
+        $('input').css('border-color', '#ddd');
+        
+        // ✅ REDIRECT TO SURVEYORS LIST AFTER 1 SECOND
+        setTimeout(function() {
+            window.location.href = '/admin-surveyors/';
+        }, 1000);
+    }
+    $('#submitBtn').prop('disabled', false).html('<i class="fas fa-save"></i> Create Surveyor');
+},
+            error: function(xhr) {
+                console.log('❌ Error:', xhr);
+                const response = xhr.responseJSON;
+                if (response && response.errors) {
+                    const errors = response.errors;
+                    for (const [field, message] of Object.entries(errors)) {
+                        $('#' + field).css('border-color', 'red');
+                        $('#' + field + 'Error').show().text(message);
+                    }
+                    showToast('Please fix the errors above.', 'error');
+                } else if (response && response.error) {
+                    showToast('❌ ' + response.error, 'error');
+                } else {
+                    showToast('❌ An error occurred. Please try again.', 'error');
+                }
+                $('#submitBtn').prop('disabled', false).html('<i class="fas fa-save"></i> Create Surveyor');
+            }
+        });
+    });
+});
+
+// Toast notification
+function showToast(message, type) {
+    const colors = {
+        success: '#27ae60',
+        error: '#e74c3c'
+    };
+    
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+        border-left: 4px solid ${colors[type] || '#27ae60'};
+        z-index: 99999;
+        max-width: 400px;
+        font-family: 'Inter', sans-serif;
+        animation: slideIn 0.4s ease;
+    `;
+    toast.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="color: ${colors[type] || '#27ae60'}; font-size: 1.2rem;">
+                ${type === 'success' ? '✅' : '❌'}
+            </span>
+            <span style="font-size: 0.9rem; color: #333;">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999; padding: 0 4px;">&times;</button>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'slideOut 0.4s ease';
+            setTimeout(() => toast.remove(), 400);
+        }
+    }, 5000);
+}
+
+// Add animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100px); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+}
+
+function togglePassword(id) {
+    const input = document.getElementById(id);
+    const btn = input.parentElement.querySelector('button');
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fas fa-eye"></i>';
+    }
+}
+</script>
+{% endblock %}

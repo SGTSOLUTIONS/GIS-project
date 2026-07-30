@@ -1,0 +1,278 @@
+{% extends 'Nit/base.html' %}
+{% load static %}
+
+{% block title %}Admin Reports{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1><i class="fas fa-chart-bar"></i> Admin Reports</h1>
+    <p class="text-muted">Overview of all system statistics and data</p>
+
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div class="stat-number">{{ total_assessments|default:0 }}</div>
+                <div class="stat-label">Total Assessments</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card" style="border-left-color: #1a8a7a;">
+                <div class="stat-icon" style="background: rgba(26,138,122,0.08); color: #1a8a7a;"><i class="fas fa-users"></i></div>
+                <div class="stat-number">{{ surveyors_count|default:0 }}</div>
+                <div class="stat-label">Surveyors</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card" style="border-left-color: #e67e22;">
+                <div class="stat-icon" style="background: rgba(230,126,34,0.08); color: #e67e22;"><i class="fas fa-map-marked-alt"></i></div>
+                <div class="stat-number">{{ wards_count|default:0 }}</div>
+                <div class="stat-label">Wards</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card" style="border-left-color: #8e44ad;">
+                <div class="stat-icon" style="background: rgba(142,68,173,0.08); color: #8e44ad;"><i class="fas fa-building"></i></div>
+                <div class="stat-number">{{ total_buildings|default:0 }}</div>
+                <div class="stat-label">Buildings</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-tag"></i> By Property Type</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for item in assessments_by_type %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ item.property_type|title }}</span>
+                            <span class="badge badge-primary">{{ item.count }}</span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-muted text-center">No data available</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-status"></i> By Status</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for item in assessments_by_status %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ item.status|title }}</span>
+                            <span class="badge badge-{{ item.status }}">{{ item.count }}</span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-muted text-center">No data available</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-road"></i> Roads</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center">{{ total_roads|default:0 }}</h3>
+                    <p class="text-muted text-center">Total roads recorded</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-map-pin"></i> Points</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center">{{ total_points|default:0 }}</h3>
+                    <p class="text-muted text-center">Total points mapped</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-vector-square"></i> Polygons</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center">{{ total_polygons|default:0 }}</h3>
+                    <p class="text-muted text-center">Total polygons created</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary mt-3">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<style>
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 0 -10px;
+    }
+    .col-md-3, .col-md-4, .col-md-6 {
+        padding: 0 10px;
+        flex: 1 1 25%;
+    }
+    .col-md-4 {
+        flex: 1 1 33.33%;
+    }
+    .col-md-6 {
+        flex: 1 1 50%;
+    }
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border-left: 4px solid #0f3b5e;
+        text-align: center;
+        margin-bottom: 16px;
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: rgba(15,59,94,0.08);
+        color: #0f3b5e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        margin: 0 auto 12px;
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a2a3a;
+        line-height: 1.2;
+    }
+    .stat-label {
+        color: #5a7a8a;
+        font-size: 0.85rem;
+        margin-top: 4px;
+    }
+    .card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid rgba(0,0,0,0.04);
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    .card-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        background: #f8f9fa;
+    }
+    .card-header h5 {
+        margin: 0;
+        color: #0f3b5e;
+    }
+    .card-body {
+        padding: 20px;
+    }
+    .list-group {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .list-group-item {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .list-group-item:last-child {
+        border-bottom: none;
+    }
+    .badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .badge-primary {
+        background: #0f3b5e;
+        color: white;
+    }
+    .badge-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .badge-completed {
+        background: #d4edda;
+        color: #155724;
+    }
+    .badge-verified {
+        background: #cce5ff;
+        color: #004085;
+    }
+    .badge-rejected {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .text-muted {
+        color: #6c757d;
+    }
+    .text-center {
+        text-align: center;
+    }
+    .btn-secondary {
+        background: #6c757d;
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+    }
+    .btn-secondary:hover {
+        background: #5a6268;
+        color: white;
+    }
+    .mt-3 { margin-top: 16px; }
+    .mt-4 { margin-top: 24px; }
+
+    @media (max-width: 768px) {
+        .col-md-3, .col-md-4, .col-md-6 {
+            flex: 1 1 100%;
+        }
+        .container {
+            padding: 12px;
+        }
+        .stat-number {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}

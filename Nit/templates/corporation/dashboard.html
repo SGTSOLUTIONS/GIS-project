@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Corporation Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="page-header">
+        <h2><i class="fas fa-building"></i> Corporation Management</h2>
+        <p>Manage administrative boundaries and survey coverage areas</p>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <i class="fas fa-city"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">{{ total_corporations|default:0 }}</span>
+                <span class="stat-label">Total Corporations</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">{{ active_corporations|default:0 }}</span>
+                <span class="stat-label">Active</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">{{ pending_corporations|default:0 }}</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <i class="fas fa-file-alt"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">{{ total_surveys|default:0 }}</span>
+                <span class="stat-label">Total Surveys</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon teal">
+                <i class="fas fa-home"></i>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">{{ total_buildings|default:0 }}</span>
+                <span class="stat-label">Total Buildings</span>
+            </div>
+        </div>
+    </div>
+
+   
+    <!-- Corporation List with Upload Button -->
+    <div class="content-section">
+        <div class="section-header">
+            <h3><i class="fas fa-list"></i> All Corporations</h3>
+            <button onclick="openUploadModal()" class="btn-primary">
+                <i class="fas fa-upload"></i> Upload GeoJSON
+            </button>
+        </div>
+
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Status</th>
+                        <th>Buildings</th>
+                        <th>Surveys</th>
+                        <th>Coverage</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for corp in corporations %}
+                    <tr>
+                        <td><strong>{{ corp.name }}</strong></td>
+                        <td>{{ corp.code }}</td>
+                        <td>
+                            <span class="status-badge {{ corp.status }}">
+                                {{ corp.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ corp.total_buildings }}</td>
+                        <td>{{ corp.total_surveys }}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress" style="width: {{ corp.coverage_percentage }}%"></div>
+                                <span>{{ corp.coverage_percentage|floatformat:1 }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn-sm btn-view" onclick="viewCorporation({{ corp.id }})">
+                                <i class="fas fa-map"></i>
+                            </button>
+                            <button class="btn-sm btn-delete" onclick="deleteCorporation({{ corp.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center">No corporations found. Click "Upload GeoJSON" to get started.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+<a href="/map/" class="btn-master-map" style="padding: 12px 24px; background: linear-gradient(135deg, #0f3b5e, #1a5276); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 10px;">
+    <i class="fas fa-globe-asia"></i> View All Buildings on Master Map
+</a>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-upload"></i> Upload Corporation GeoJSON</h3>
+            <span class="close" onclick="closeUploadModal()">&times;</span>
+        </div>
+        
+        <div id="uploadMessage" style="display:none; padding: 12px 24px; margin: 0 24px; border-radius: 8px;"></div>
+        
+        <form id="uploadForm" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>Corporation Name *</label>
+                <input type="text" id="corpName" name="name" required placeholder="Enter corporation name">
+                <small>This will be used to generate a unique code</small>
+            </div>
+            <div class="form-group">
+                <label>Corporation Code</label>
+                <input type="text" id="corpCode" name="code" placeholder="Leave empty to auto-generate">
+                <small>Leave empty to auto-generate a unique code based on the name</small>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="corpDescription" name="description" rows="3" placeholder="Describe the corporation"></textarea>
+            </div>
+            <div class="form-group">
+                <label>GeoJSON File *</label>
+                <input type="file" id="geojsonFile" name="geojson_file" accept=".geojson,.json" required>
+                <small>Upload a GeoJSON file with polygon boundaries</small>
+            </div>
+            
+            <div id="uploadProgress" style="display:none; padding: 16px 24px;">
+                <p style="margin-bottom: 8px;">Processing GeoJSON...</p>
+                <div style="width: 100%; height: 4px; background: #eee; border-radius: 2px; overflow: hidden;">
+                    <div class="progress-bar-animated" style="width: 100%; height: 100%; background: linear-gradient(90deg, #1a8a7a, #23b5a0); animation: progressAnim 1.5s ease-in-out infinite;"></div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="btn-primary" id="submitBtn">
+                    <i class="fas fa-upload"></i> Upload & Create
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .progress-bar-animated {
+        animation: progressAnim 1.5s ease-in-out infinite;
+    }
+    @keyframes progressAnim {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    
+    .dashboard-container { padding: 24px; background: #f5f7fa; min-height: 100vh; }
+    .page-header { background: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .page-header h2 { margin: 0; color: #0f3b5e; display: flex; align-items: center; gap: 12px; }
+    .page-header p { margin: 4px 0 0 0; color: #6b7a8a; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: white; border-radius: 12px; padding: 18px 22px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.3s ease; }
+    .stat-card:hover { transform: translateY(-4px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .stat-icon.blue { background: rgba(15, 59, 94, 0.08); color: #0f3b5e; }
+    .stat-icon.green { background: rgba(26, 138, 122, 0.08); color: #1a8a7a; }
+    .stat-icon.orange { background: rgba(230, 126, 34, 0.08); color: #e67e22; }
+    .stat-icon.purple { background: rgba(155, 89, 182, 0.08); color: #8e44ad; }
+    .stat-icon.teal { background: rgba(0, 188, 212, 0.08); color: #00bcd4; }
+    .stat-info { flex: 1; }
+    .stat-number { display: block; font-size: 1.4rem; font-weight: 700; color: #1a2a3a; }
+    .stat-label { font-size: 0.75rem; color: #6b7a8a; font-weight: 500; }
+    
+    .content-section { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .section-header h3 { margin: 0; color: #0f3b5e; display: flex; align-items: center; gap: 8px; }
+    
+    .btn-primary { padding: 8px 16px; background: linear-gradient(135deg, #1a8a7a, #23b5a0); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(26, 138, 122, 0.3); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-secondary { padding: 8px 16px; background: #e0e0e0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .btn-sm { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .btn-view { background: rgba(15, 59, 94, 0.1); color: #0f3b5e; }
+    .btn-delete { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+    
+    .status-badge { padding: 2px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .status-badge.active { background: rgba(26, 138, 122, 0.15); color: #1a8a7a; }
+    .status-badge.pending { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
+    .status-badge.inactive { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+    
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; color: #6b7a8a; font-weight: 600; font-size: 0.85rem; }
+    .data-table td { padding: 12px; border-bottom: 1px solid #f0f0f0; color: #1a2a3a; }
+    .data-table tr:hover td { background: #f8f9fa; }
+    .text-center { text-align: center; }
+    
+    .progress-bar { display: flex; align-items: center; gap: 8px; }
+    .progress-bar .progress { height: 6px; background: #1a8a7a; border-radius: 3px; transition: width 0.3s ease; }
+    .progress-bar span { font-size: 0.75rem; color: #6b7a8a; min-width: 40px; }
+    
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); animation: fadeIn 0.3s ease; }
+    .modal-content { background: white; margin: 5% auto; padding: 0; border-radius: 12px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; animation: slideIn 0.3s ease; }
+    .modal-header { padding: 16px 24px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h3 { margin: 0; color: #0f3b5e; display: flex; align-items: center; gap: 8px; }
+    .modal-header .close { font-size: 1.5rem; cursor: pointer; color: #999; transition: color 0.3s ease; }
+    .modal-header .close:hover { color: #333; }
+    .form-group { padding: 16px 24px; }
+    .form-group label { display: block; margin-bottom: 4px; font-weight: 600; color: #1a2a3a; }
+    .form-group input, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; transition: border-color 0.3s ease; }
+    .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #1a8a7a; }
+    .form-group small { display: block; margin-top: 4px; color: #6b7a8a; font-size: 0.8rem; }
+    .form-actions { padding: 16px 24px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 12px; }
+    
+    .message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 0;
+        font-weight: 500;
+    }
+    .message.success {
+        background: rgba(26, 138, 122, 0.1);
+        color: #1a8a7a;
+        border: 1px solid rgba(26, 138, 122, 0.2);
+    }
+    .message.error {
+        background: rgba(231, 76, 60, 0.1);
+        color: #e74c3c;
+        border: 1px solid rgba(231, 76, 60, 0.2);
+    }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: 1fr 1fr; }
+        .section-header { flex-direction: column; align-items: stretch; }
+        .data-table { font-size: 0.8rem; }
+        .data-table th, .data-table td { padding: 8px; }
+        .modal-content { margin: 10% auto; width: 95%; }
+    }
+</style>
+
+<script>
+    function openUploadModal() {
+        document.getElementById('uploadModal').style.display = 'block';
+        document.getElementById('uploadForm').reset();
+        document.getElementById('uploadMessage').style.display = 'none';
+        document.getElementById('uploadMessage').className = '';
+        document.getElementById('uploadProgress').style.display = 'none';
+        var submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Create';
+        }
+    }
+    
+    function closeUploadModal() {
+        document.getElementById('uploadModal').style.display = 'none';
+        document.getElementById('uploadForm').reset();
+        document.getElementById('uploadProgress').style.display = 'none';
+        document.getElementById('uploadMessage').style.display = 'none';
+        document.getElementById('uploadMessage').className = '';
+        var submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Create';
+        }
+    }
+    
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        var formData = new FormData(this);
+        var progressDiv = document.getElementById('uploadProgress');
+        var messageDiv = document.getElementById('uploadMessage');
+        var submitBtn = document.getElementById('submitBtn');
+        
+        progressDiv.style.display = 'block';
+        messageDiv.style.display = 'none';
+        messageDiv.className = '';
+        
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        }
+        
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'message error';
+            messageDiv.innerHTML = '❌ CSRF token not found. Please refresh the page.';
+            progressDiv.style.display = 'none';
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Create';
+            }
+            return;
+        }
+        
+        fetch('/corporation/upload/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken.value
+            }
+        })
+        .then(response => {
+            return response.json().then(data => {
+                return { status: response.status, data: data };
+            });
+        })
+        .then(result => {
+            progressDiv.style.display = 'none';
+            
+            if (result.status === 200 && result.data.success) {
+                messageDiv.style.display = 'block';
+                messageDiv.className = 'message success';
+                messageDiv.innerHTML = '✅ ' + result.data.message;
+                
+                setTimeout(function() {
+                    closeUploadModal();
+                    location.reload();
+                }, 3000);
+            } else {
+                var errorMsg = result.data.error || 'Upload failed. Please try again.';
+                messageDiv.style.display = 'block';
+                messageDiv.className = 'message error';
+                messageDiv.innerHTML = '❌ ' + errorMsg;
+                
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Create';
+                }
+            }
+        })
+        .catch(error => {
+            progressDiv.style.display = 'none';
+            messageDiv.style.display = 'block';
+            messageDiv.className = 'message error';
+            messageDiv.innerHTML = '❌ Network error: ' + error.message;
+            
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Create';
+            }
+        });
+    });
+    
+    function viewCorporation(id) {
+    window.location.href = '/corporation/map/' + id + '/';
+}
+    
+    function deleteCorporation(id) {
+        if (confirm('Are you sure you want to delete this corporation?')) {
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            fetch('/corporation/delete/' + id + '/', {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': csrfToken ? csrfToken.value : ''
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error deleting: ' + error);
+            });
+        }
+    }
+    
+    window.onclick = function(event) {
+        var modal = document.getElementById('uploadModal');
+        if (event.target == modal) {
+            closeUploadModal();
+        }
+    }
+</script>
+{% endblock %}

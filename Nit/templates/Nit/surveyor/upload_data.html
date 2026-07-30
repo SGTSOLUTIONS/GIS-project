@@ -1,0 +1,1024 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Upload Assessment Data{% endblock %}
+
+{% block content %}
+<style>
+    /* Force remove ALL padding from page-content */
+    .page-content {
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #eef1f3;
+        min-height: 100vh;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Remove all padding from container */
+    .upload-page {
+        --ink: #16324f;
+        --slate: #49607a;
+        --slate-light: #7c8fa3;
+        --paper: #eef1f3;
+        --paper-card: #ffffff;
+        --line: #d7dee3;
+        --flag: #d97a1f;
+        --flag-dark: #b8630f;
+        --success: #2f9e58;
+        --warn: #b5790a;
+        --info: #2472a4;
+        --danger: #c0392b;
+
+        background: var(--paper);
+        min-height: 100vh;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-family: 'Inter', -apple-system, sans-serif;
+        color: var(--ink);
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .upload-shell { 
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 1.5rem 1.5rem 2rem 1.5rem !important;
+        width: 100% !important;
+    }
+
+    /* Breadcrumb */
+    .crumb-nav { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.6rem; 
+        font-size: 0.85rem; 
+        margin-bottom: 1.5rem; 
+        color: var(--slate-light);
+        padding: 0 !important;
+    }
+    .crumb-link { 
+        color: var(--slate); 
+        text-decoration: none; 
+        font-weight: 500; 
+    }
+    .crumb-link:hover { color: var(--flag); }
+    .crumb-current { color: var(--ink); font-weight: 600; }
+    .crumb-sep { opacity: 0.5; }
+
+    /* Header */
+    .upload-header { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: flex-start; 
+        gap: 2rem; 
+        flex-wrap: wrap; 
+        margin-bottom: 2rem;
+        padding: 0 !important;
+    }
+    .eyebrow { 
+        font-family: 'IBM Plex Mono', monospace; 
+        text-transform: uppercase; 
+        letter-spacing: 0.12em; 
+        font-size: 0.72rem; 
+        color: var(--flag-dark); 
+        font-weight: 600; 
+        margin-bottom: 0.3rem; 
+    }
+    .upload-header h1 { 
+        font-family: 'Space Grotesk', sans-serif; 
+        font-weight: 700; 
+        font-size: 2rem; 
+        letter-spacing: -0.02em; 
+        margin: 0 0 0.3rem; 
+        color: var(--ink); 
+    }
+    .subtitle { 
+        color: var(--slate); 
+        font-size: 0.95rem; 
+        max-width: 50ch; 
+        margin: 0; 
+    }
+
+    /* Layout - FULL WIDTH */
+    .upload-grid { 
+        display: grid; 
+        grid-template-columns: 1fr 320px; 
+        gap: 1.5rem; 
+        align-items: start; 
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .form-column {
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    @media (max-width: 1100px) { 
+        .upload-grid { 
+            grid-template-columns: 1fr; 
+        } 
+        .sidebar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            position: static;
+        }
+    }
+    @media (max-width: 700px) { 
+        .sidebar {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Panels - FULL WIDTH */
+    .panel { 
+        background: var(--paper-card); 
+        border: 1px solid var(--line); 
+        border-radius: 12px; 
+        padding: 1.5rem 1.75rem; 
+        margin-bottom: 1.25rem; 
+        width: 100% !important;
+    }
+    .panel-head { 
+        display: flex; 
+        align-items: flex-start; 
+        gap: 1rem; 
+        margin-bottom: 1.5rem; 
+        padding-bottom: 1rem; 
+        border-bottom: 1px solid var(--line); 
+    }
+    .panel-index { 
+        font-family: 'IBM Plex Mono', monospace; 
+        font-weight: 600; 
+        font-size: 0.8rem; 
+        color: var(--flag); 
+        background: rgba(217, 122, 31, 0.1); 
+        border-radius: 6px; 
+        padding: 0.25rem 0.5rem; 
+        line-height: 1; 
+        white-space: nowrap;
+    }
+    .panel-head h2 { 
+        font-family: 'Space Grotesk', sans-serif; 
+        font-size: 1.05rem; 
+        font-weight: 600; 
+        margin: 0 0 0.15rem; 
+        color: var(--ink); 
+    }
+    .panel-head p { 
+        margin: 0; 
+        color: var(--slate-light); 
+        font-size: 0.82rem; 
+    }
+
+    /* Flash messages */
+    .flash { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.75rem; 
+        padding: 0.8rem 1rem; 
+        border-radius: 10px; 
+        margin-bottom: 1.25rem; 
+        font-size: 0.88rem; 
+        border: 1px solid var(--line); 
+        background: var(--paper-card); 
+        width: 100% !important;
+    }
+    .flash-success { 
+        border-color: rgba(47,158,88,0.3); 
+        background: rgba(47,158,88,0.06); 
+        color: #1f7a41; 
+    }
+    .flash-error { 
+        border-color: rgba(192,57,43,0.3); 
+        background: rgba(192,57,43,0.06); 
+        color: var(--danger); 
+    }
+    .flash-close { 
+        margin-left: auto; 
+        background: none; 
+        border: none; 
+        font-size: 1.2rem; 
+        line-height: 1; 
+        color: inherit; 
+        opacity: 0.6; 
+        cursor: pointer; 
+    }
+
+    /* Dropzone */
+    .dropzone { 
+        position: relative; 
+        background: var(--paper); 
+        border: 2px dashed var(--line); 
+        border-radius: 12px; 
+        padding: 2rem 1.5rem; 
+        text-align: center; 
+        cursor: pointer; 
+        transition: all 0.15s ease; 
+        width: 100% !important;
+    }
+    .dropzone.drag-active { 
+        border-color: var(--flag); 
+        background: rgba(217,122,31,0.06); 
+    }
+    .dropzone-icon { 
+        font-size: 1.6rem; 
+        color: var(--slate-light); 
+        margin-bottom: 0.6rem; 
+    }
+    .dropzone-title { 
+        font-weight: 600; 
+        margin: 0 0 0.15rem; 
+        color: var(--ink); 
+        font-size: 0.95rem;
+    }
+    .dropzone-hint { 
+        color: var(--slate-light); 
+        font-size: 0.8rem; 
+        margin: 0 0 1rem; 
+    }
+    .visually-hidden-input { 
+        position: absolute; 
+        width: 1px; 
+        height: 1px; 
+        overflow: hidden; 
+        opacity: 0; 
+    }
+    .file-chip { 
+        display: none; 
+        align-items: center; 
+        gap: 0.5rem; 
+        margin-top: 1rem; 
+        background: rgba(47,158,88,0.08); 
+        border: 1px solid rgba(47,158,88,0.3); 
+        color: #1f7a41; 
+        padding: 0.5rem 0.8rem; 
+        border-radius: 8px; 
+        font-size: 0.82rem; 
+    }
+    .file-chip.is-visible { 
+        display: inline-flex; 
+    }
+    .file-chip-name { 
+        font-weight: 600; 
+        max-width: 250px; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+        white-space: nowrap; 
+    }
+    .file-chip-remove { 
+        background: none; 
+        border: none; 
+        font-size: 1rem; 
+        line-height: 1; 
+        color: inherit; 
+        cursor: pointer; 
+        margin-left: 0.2rem; 
+    }
+
+    /* Fields - FULL WIDTH */
+    .field-grid { 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 1.25rem; 
+        width: 100% !important;
+    }
+    .field-full { 
+        grid-column: 1 / -1; 
+    }
+    .field { 
+        width: 100% !important;
+    }
+    .field label { 
+        display: block; 
+        font-size: 0.82rem; 
+        font-weight: 600; 
+        color: var(--ink); 
+        margin-bottom: 0.4rem; 
+    }
+    .field label .unit { 
+        font-weight: 400; 
+        color: var(--slate-light); 
+        font-size: 0.75rem; 
+    }
+    .req { 
+        color: var(--danger); 
+    }
+    .input { 
+        width: 100% !important; 
+        border: 1px solid var(--line); 
+        border-radius: 8px; 
+        padding: 0.6rem 0.9rem; 
+        font-size: 0.9rem; 
+        font-family: 'Inter', sans-serif; 
+        background: var(--paper-card); 
+        color: var(--ink); 
+        transition: border-color 0.15s, box-shadow 0.15s; 
+        box-sizing: border-box;
+    }
+    .input:focus { 
+        outline: none; 
+        border-color: var(--flag); 
+        box-shadow: 0 0 0 3px rgba(217,122,31,0.12); 
+    }
+    .input.is-invalid { 
+        border-color: var(--danger); 
+        box-shadow: 0 0 0 3px rgba(192,57,43,0.1); 
+    }
+    .input-mono { 
+        font-family: 'IBM Plex Mono', monospace; 
+    }
+    textarea.input { 
+        resize: vertical; 
+        min-height: 2.5rem; 
+    }
+    .field-hint { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.3rem; 
+        font-size: 0.75rem; 
+        color: var(--slate-light); 
+        margin: 0.4rem 0 0; 
+    }
+
+    /* Coordinates - FULL WIDTH */
+    .coord-layout { 
+        display: grid; 
+        grid-template-columns: 1fr 200px; 
+        gap: 1.5rem; 
+        align-items: start; 
+        width: 100% !important;
+    }
+    @media (max-width: 768px) { 
+        .coord-layout { 
+            grid-template-columns: 1fr; 
+        } 
+        .plot-grid { 
+            max-width: 200px; 
+            margin: 0 auto; 
+        }
+    }
+    .coord-inputs .field { 
+        margin-bottom: 0.8rem; 
+    }
+    .coord-status { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.5rem; 
+        font-size: 0.82rem; 
+        padding: 0.6rem 0.8rem; 
+        border-radius: 8px; 
+        margin-bottom: 0.7rem; 
+    }
+    .coord-status-empty { 
+        background: var(--paper); 
+        color: var(--slate-light); 
+    }
+    .coord-status-ok { 
+        background: rgba(47,158,88,0.08); 
+        color: #1f7a41; 
+        font-family: 'IBM Plex Mono', monospace; 
+    }
+    .coord-status-warn { 
+        background: rgba(181,121,10,0.1); 
+        color: var(--warn); 
+    }
+    .coord-map-link { 
+        width: 100%; 
+        justify-content: center; 
+    }
+    .plot-grid { 
+        background: var(--paper); 
+        border: 1px solid var(--line); 
+        border-radius: 10px; 
+        overflow: hidden; 
+        aspect-ratio: 1; 
+        width: 100%;
+        max-width: 200px;
+    }
+    .plot-grid svg { 
+        width: 100%; 
+        height: 100%; 
+        display: block; 
+    }
+
+    /* Buttons */
+    .btn-primary, .btn-secondary, .btn-ghost, .btn-text { 
+        font-family: 'Inter', sans-serif; 
+        font-weight: 600; 
+        font-size: 0.88rem; 
+        border-radius: 8px; 
+        padding: 0.65rem 1.25rem; 
+        cursor: pointer; 
+        display: inline-flex; 
+        align-items: center; 
+        gap: 0.5rem; 
+        transition: all 0.15s ease; 
+        text-decoration: none; 
+        border: 1px solid transparent;
+    }
+    .btn-primary { 
+        background: var(--ink); 
+        color: #fff; 
+        border: 1px solid var(--ink); 
+    }
+    .btn-primary:hover { 
+        background: var(--flag-dark); 
+        border-color: var(--flag-dark); 
+    }
+    .btn-secondary { 
+        background: var(--paper-card); 
+        color: var(--ink); 
+        border: 1px solid var(--line); 
+    }
+    .btn-secondary:hover { 
+        border-color: var(--flag); 
+        color: var(--flag-dark); 
+    }
+    .btn-ghost { 
+        background: transparent; 
+        color: var(--ink); 
+        border: 1px solid var(--line); 
+    }
+    .btn-ghost:hover { 
+        border-color: var(--slate); 
+    }
+    .btn-text { 
+        background: none; 
+        border: none; 
+        color: var(--slate-light); 
+        padding: 0.65rem 0.3rem; 
+    }
+    .btn-text:hover { 
+        color: var(--danger); 
+    }
+
+    .action-bar { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        flex-wrap: wrap; 
+        gap: 0.8rem; 
+        background: var(--paper-card); 
+        border: 1px solid var(--line); 
+        border-radius: 12px; 
+        padding: 1.25rem 1.5rem; 
+        width: 100% !important;
+        margin-top: 0.25rem;
+    }
+    .action-buttons { 
+        display: flex; 
+        gap: 0.7rem; 
+        flex-wrap: wrap;
+    }
+
+    /* Sidebar */
+    .sidebar { 
+        position: sticky; 
+        top: 1.5rem; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 1.25rem; 
+    }
+    .side-panel { 
+        background: var(--paper-card); 
+        border: 1px solid var(--line); 
+        border-radius: 12px; 
+        padding: 1.25rem 1.5rem; 
+    }
+    .side-title { 
+        font-family: 'Space Grotesk', sans-serif; 
+        font-size: 0.78rem; 
+        font-weight: 600; 
+        text-transform: uppercase; 
+        letter-spacing: 0.06em; 
+        color: var(--slate); 
+        display: flex; 
+        align-items: center; 
+        gap: 0.4rem; 
+        margin: 0 0 1rem; 
+    }
+    .metric-list { 
+        margin: 0; 
+    }
+    .metric-row { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 0.6rem 0; 
+        border-bottom: 1px solid var(--line); 
+    }
+    .metric-row-last { 
+        border-bottom: none; 
+        padding-bottom: 0; 
+    }
+    .metric-row dt { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.4rem; 
+        color: var(--slate); 
+        font-size: 0.82rem; 
+        font-weight: 400; 
+    }
+    .metric-row dd { 
+        font-family: 'IBM Plex Mono', monospace; 
+        font-weight: 600; 
+        font-size: 1rem; 
+        margin: 0; 
+        color: var(--ink); 
+    }
+    .metric-warning { 
+        color: var(--warn) !important; 
+    }
+    .metric-success { 
+        color: var(--success) !important; 
+    }
+    .metric-info { 
+        color: var(--info) !important; 
+    }
+
+    .check-item { 
+        display: flex; 
+        gap: 0.7rem; 
+        margin-bottom: 1rem; 
+    }
+    .check-item:last-child { 
+        margin-bottom: 0; 
+    }
+    .check-item i { 
+        color: var(--flag); 
+        font-size: 0.9rem; 
+        margin-top: 0.15rem; 
+        width: 1rem; 
+    }
+    .check-item strong { 
+        display: block; 
+        font-size: 0.85rem; 
+        color: var(--ink); 
+        margin-bottom: 0.1rem; 
+    }
+    .check-item p { 
+        margin: 0; 
+        font-size: 0.78rem; 
+        color: var(--slate-light); 
+        line-height: 1.3; 
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+        .upload-grid { 
+            grid-template-columns: 1fr; 
+        }
+        .sidebar {
+            position: static;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+        .upload-shell { 
+            padding: 1rem !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .upload-shell { 
+            padding: 0.75rem !important;
+        }
+        .panel {
+            padding: 1rem 1.25rem;
+        }
+        .panel-head {
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        .field-grid {
+            grid-template-columns: 1fr;
+        }
+        .upload-header h1 {
+            font-size: 1.5rem;
+        }
+        .action-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .action-buttons {
+            flex-direction: column;
+        }
+        .action-buttons .btn-primary,
+        .action-buttons .btn-ghost {
+            width: 100%;
+            justify-content: center;
+        }
+        .btn-text {
+            text-align: center;
+        }
+        .coord-layout {
+            grid-template-columns: 1fr;
+        }
+        .plot-grid {
+            max-width: 180px;
+            margin: 0 auto;
+        }
+        .sidebar {
+            grid-template-columns: 1fr;
+        }
+        .upload-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .upload-header > a {
+            align-self: flex-start;
+        }
+        .crumb-nav {
+            font-size: 0.75rem;
+            flex-wrap: wrap;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .upload-shell { 
+            padding: 0.5rem !important;
+        }
+        .panel {
+            padding: 0.75rem 0.85rem;
+            border-radius: 8px;
+        }
+        .dropzone {
+            padding: 1.25rem 0.75rem;
+        }
+        .dropzone-title {
+            font-size: 0.85rem;
+        }
+        .input {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.7rem;
+        }
+        .btn-primary, .btn-secondary, .btn-ghost {
+            font-size: 0.82rem;
+            padding: 0.5rem 0.8rem;
+        }
+        .action-bar {
+            padding: 0.75rem 0.85rem;
+        }
+        .side-panel {
+            padding: 1rem;
+        }
+        .upload-header h1 {
+            font-size: 1.2rem;
+        }
+        .subtitle {
+            font-size: 0.85rem;
+        }
+        .coord-layout {
+            gap: 0.8rem;
+        }
+        .plot-grid {
+            max-width: 140px;
+        }
+        .panel-head h2 {
+            font-size: 0.95rem;
+        }
+    }
+</style>
+
+<div class="upload-page">
+    <div class="upload-shell">
+
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="crumb-nav">
+            <a href="{% url 'surveyor_dashboard' %}" class="crumb-link">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+            <span class="crumb-sep">/</span>
+            <span class="crumb-current"><i class="fas fa-upload"></i> Upload Assessment</span>
+        </nav>
+
+        <!-- Header -->
+        <header class="upload-header">
+            <div>
+                <p class="eyebrow">Field Record Entry</p>
+                <h1>New Assessment</h1>
+                <p class="subtitle">Record the coordinates and administrative details for a property, then attach any supporting survey documents.</p>
+            </div>
+            <a href="{% url 'surveyor_dashboard' %}" class="btn-ghost">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </header>
+
+        <div class="upload-grid">
+            <!-- Form column -->
+            <div class="form-column">
+                <form method="POST" enctype="multipart/form-data" id="uploadForm" novalidate>
+                    {% csrf_token %}
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="flash flash-{{ message.tags }}" role="alert">
+                                <i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+                                <span>{{ message }}</span>
+                                <button type="button" class="flash-close" data-bs-dismiss="alert" aria-label="Dismiss">&times;</button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Section 1: File -->
+                    <section class="panel">
+                        <div class="panel-head">
+                            <span class="panel-index">01</span>
+                            <div>
+                                <h2>Supporting Document</h2>
+                                <p>Attach a survey sheet, blueprint, or site photo — optional.</p>
+                            </div>
+                        </div>
+
+                        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload a file">
+                            <input type="file" name="assessment_file" id="fileInput" class="visually-hidden-input" accept=".pdf,.xlsx,.csv,.jpg,.png">
+                            <div class="dropzone-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                            <p class="dropzone-title">Drag a file here, or browse</p>
+                            <p class="dropzone-hint">PDF, Excel, CSV, or image — up to 10MB</p>
+                            <button type="button" class="btn-secondary" id="browseBtn">
+                                <i class="fas fa-folder-open"></i> Choose File
+                            </button>
+
+                            <div id="fileInfo" class="file-chip d-none">
+                                <i class="fas fa-file-invoice"></i>
+                                <span id="fileName" class="file-chip-name"></span>
+                                <button type="button" class="file-chip-remove" id="removeFileBtn" aria-label="Remove file">&times;</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Section 2: Property profile -->
+                    <section class="panel">
+                        <div class="panel-head">
+                            <span class="panel-index">02</span>
+                            <div>
+                                <h2>Property Profile</h2>
+                                <p>Core identity and ownership details.</p>
+                            </div>
+                        </div>
+
+                        <div class="field-grid">
+                            <div class="field">
+                                <label for="gis_id">GIS ID Reference <span class="req">*</span></label>
+                                <input type="text" name="gis_id" id="gis_id" class="input input-mono" placeholder="GIS-2024-001" required>
+                                <p class="field-hint"><i class="fas fa-fingerprint"></i> Must be unique in the registry</p>
+                            </div>
+                            <div class="field">
+                                <label for="assessment_date">Date of Field Survey</label>
+                                <input type="date" name="assessment_date" id="assessment_date" class="input" value="{% now 'Y-m-d' %}">
+                            </div>
+                            <div class="field">
+                                <label for="owner_name">Registered Owner <span class="req">*</span></label>
+                                <input type="text" name="owner_name" id="owner_name" class="input" placeholder="Full legal name" required>
+                            </div>
+                            <div class="field">
+                                <label for="property_type">Zoning Classification</label>
+                                <select name="property_type" id="property_type" class="input">
+                                    <option value="residential">Residential</option>
+                                    <option value="commercial">Commercial</option>
+                                    <option value="industrial">Industrial</option>
+                                </select>
+                            </div>
+                            <div class="field field-full">
+                                <label for="address">Administrative Address <span class="req">*</span></label>
+                                <textarea name="address" id="address" class="input" rows="2" placeholder="Plot, street, and locality detail" required></textarea>
+                            </div>
+                            <div class="field">
+                                <label for="area_sq_m">Area <span class="unit">sq m</span></label>
+                                <input type="number" step="0.01" name="area_sq_m" id="area_sq_m" class="input input-mono" placeholder="0.00">
+                            </div>
+                            <div class="field">
+                                <label for="ward_id">Municipal Ward</label>
+                                <select name="ward_id" id="ward_id" class="input">
+                                    <option value="">Select ward</option>
+                                    {% for ward in wards %}
+                                        <option value="{{ ward.id }}">{{ ward.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Section 3: Coordinates -->
+                    <section class="panel">
+                        <div class="panel-head">
+                            <span class="panel-index">03</span>
+                            <div>
+                                <h2>Geospatial Coordinates</h2>
+                                <p>Decimal degrees, WGS 84.</p>
+                            </div>
+                        </div>
+
+                        <div class="coord-layout">
+                            <div class="coord-inputs">
+                                <div class="field">
+                                    <label for="latitude">Latitude</label>
+                                    <input type="text" name="latitude" id="latitude" class="input input-mono" placeholder="28.6139">
+                                </div>
+                                <div class="field">
+                                    <label for="longitude">Longitude</label>
+                                    <input type="text" name="longitude" id="longitude" class="input input-mono" placeholder="77.2090">
+                                </div>
+                                <div id="coordStatus" class="coord-status coord-status-empty">
+                                    <i class="fas fa-map-marked-alt"></i>
+                                    <span>Enter both values to place the marker</span>
+                                </div>
+                                <a id="mapLink" href="#" target="_blank" class="btn-secondary coord-map-link d-none">
+                                    <i class="fas fa-external-link-alt"></i> Open in Maps
+                                </a>
+                            </div>
+
+                            <div class="plot-grid" aria-hidden="true">
+                                <svg viewBox="0 0 200 200" id="plotSvg">
+                                    <defs>
+                                        <pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#c7d3dc" stroke-width="1"/>
+                                        </pattern>
+                                    </defs>
+                                    <rect width="200" height="200" fill="url(#gridPattern)"/>
+                                    <line x1="0" y1="100" x2="200" y2="100" stroke="#a9b9c6" stroke-width="1" stroke-dasharray="3 3"/>
+                                    <line x1="100" y1="0" x2="100" y2="200" stroke="#a9b9c6" stroke-width="1" stroke-dasharray="3 3"/>
+                                    <g id="marker" style="display:none">
+                                        <line x1="-8" y1="0" x2="8" y2="0" stroke="#d97a1f" stroke-width="2"/>
+                                        <line x1="0" y1="-8" x2="0" y2="8" stroke="#d97a1f" stroke-width="2"/>
+                                        <circle r="4" fill="none" stroke="#d97a1f" stroke-width="2"/>
+                                    </g>
+                                </svg>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Actions -->
+                    <div class="action-bar">
+                        <div class="action-buttons">
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-save"></i> Save & Commit Record
+                            </button>
+                            <button type="reset" class="btn-ghost" id="resetBtn">Reset Fields</button>
+                        </div>
+                        <a href="{% url 'surveyor_dashboard' %}" class="btn-text">Discard Record</a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="side-panel">
+                    <h3 class="side-title"><i class="fas fa-chart-bar"></i> Your Log Metrics</h3>
+                    <dl class="metric-list">
+                        <div class="metric-row">
+                            <dt><i class="fas fa-layer-group"></i> Total Submissions</dt>
+                            <dd>{{ total_assessments|default:"0" }}</dd>
+                        </div>
+                        <div class="metric-row">
+                            <dt><i class="fas fa-clock metric-warning"></i> Pending Verification</dt>
+                            <dd class="metric-warning">{{ pending_count|default:"0" }}</dd>
+                        </div>
+                        <div class="metric-row">
+                            <dt><i class="fas fa-check-circle metric-success"></i> Approved Logs</dt>
+                            <dd class="metric-success">{{ completed_count|default:"0" }}</dd>
+                        </div>
+                        <div class="metric-row metric-row-last">
+                            <dt><i class="fas fa-certificate metric-info"></i> Verified Plots</dt>
+                            <dd class="metric-info">{{ verified_count|default:"0" }}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div class="side-panel">
+                    <h3 class="side-title"><i class="fas fa-shield-alt"></i> Compliance Checks</h3>
+                    <div class="check-item">
+                        <i class="fas fa-fingerprint"></i>
+                        <div>
+                            <strong>Index Uniqueness</strong>
+                            <p>The GIS ID must not conflict with an active registry entry.</p>
+                        </div>
+                    </div>
+                    <div class="check-item">
+                        <i class="fas fa-globe-americas"></i>
+                        <div>
+                            <strong>Coordinate Format</strong>
+                            <p>Decimal degrees only, referenced to WGS 84.</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const fileInput = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const removeFileBtn = document.getElementById('removeFileBtn');
+    const browseBtn = document.getElementById('browseBtn');
+    const latInput = document.getElementById('latitude');
+    const lngInput = document.getElementById('longitude');
+    const coordStatus = document.getElementById('coordStatus');
+    const mapLink = document.getElementById('mapLink');
+    const marker = document.getElementById('marker');
+
+    browseBtn.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('click', (e) => { if (e.target === dropzone) fileInput.click(); });
+    dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag-active'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag-active'); });
+    });
+    dropzone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length) { fileInput.files = files; handleFileSelection(files[0]); }
+    });
+    fileInput.addEventListener('change', function () {
+        if (this.files.length) handleFileSelection(this.files[0]);
+    });
+
+    function handleFileSelection(file) {
+        fileName.textContent = file.name;
+        fileInfo.classList.remove('d-none');
+        fileInfo.classList.add('is-visible');
+    }
+    removeFileBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        fileInput.value = '';
+        fileInfo.classList.remove('is-visible');
+        fileInfo.classList.add('d-none');
+    });
+
+    function updateCoordinates() {
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+        const latRaw = latInput.value.trim();
+        const lngRaw = lngInput.value.trim();
+
+        if (!latRaw && !lngRaw) {
+            coordStatus.className = 'coord-status coord-status-empty';
+            coordStatus.innerHTML = '<i class="fas fa-map-marked-alt"></i><span>Enter both values to place the marker</span>';
+            marker.style.display = 'none';
+            mapLink.classList.add('d-none');
+            return;
+        }
+
+        const valid = !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
+        if (valid) {
+            coordStatus.className = 'coord-status coord-status-ok';
+            coordStatus.innerHTML = `<i class="fas fa-check-circle"></i><span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span>`;
+            const x = ((lng + 180) / 360) * 200;
+            const y = ((90 - lat) / 180) * 200;
+            marker.setAttribute('transform', `translate(${x}, ${y})`);
+            marker.style.display = 'block';
+            mapLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
+            mapLink.classList.remove('d-none');
+        } else {
+            coordStatus.className = 'coord-status coord-status-warn';
+            coordStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Enter valid decimal degrees</span>';
+            marker.style.display = 'none';
+            mapLink.classList.add('d-none');
+        }
+    }
+    latInput.addEventListener('input', updateCoordinates);
+    lngInput.addEventListener('input', updateCoordinates);
+
+    document.getElementById('uploadForm').addEventListener('submit', function (e) {
+        let isValid = true;
+        this.querySelectorAll('[required]').forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        if (!isValid) {
+            e.preventDefault();
+            const firstInvalid = this.querySelector('.is-invalid');
+            if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+    document.querySelectorAll('.input').forEach(el => {
+        el.addEventListener('input', function () { this.classList.remove('is-invalid'); });
+    });
+
+    // Reset confirmation
+    document.getElementById('resetBtn').addEventListener('click', function(e) {
+        if (!confirm('Are you sure you want to clear all fields?')) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+
+{% endblock %}

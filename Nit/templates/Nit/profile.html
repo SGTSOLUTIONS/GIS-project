@@ -1,0 +1,1406 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Profile - GIS Survey{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <!-- Page Header -->
+    <div class="page-header premium-header">
+        <div class="header-left">
+            <h2><i class="fas fa-user-circle"></i> My Profile</h2>
+            <p>Manage your account settings and personal information</p>
+        </div>
+        <div class="header-right">
+            <span class="header-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Active</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="messages-container">
+            {% for message in messages %}
+                <div class="message {% if message.tags == 'success' %}success{% elif message.tags == 'error' %}error{% else %}info{% endif %}">
+                    <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %}"></i>
+                    <span>{{ message }}</span>
+                    <button class="message-close" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Profile Layout -->
+    <div class="profile-layout">
+        <!-- Left Sidebar -->
+        <div class="profile-sidebar">
+            <div class="profile-avatar-container">
+                <div class="profile-avatar">
+                    {{ user.username|first|upper }}
+                </div>
+                <div class="avatar-status online"></div>
+                <button class="avatar-upload-btn" onclick="showNotification('Profile picture upload coming soon!')">
+                    <i class="fas fa-camera"></i>
+                </button>
+            </div>
+            <h3 class="sidebar-name">{{ user.get_full_name|default:user.username }}</h3>
+            <p class="sidebar-email">{{ user.email|default:"No email set" }}</p>
+            <div class="sidebar-badge {% if user.is_superuser %}admin{% elif user.is_staff %}staff{% else %}user{% endif %}">
+                {% if user.is_superuser %}
+                    <i class="fas fa-crown"></i> Administrator
+                {% elif user.is_staff %}
+                    <i class="fas fa-user-tie"></i> Staff
+                {% else %}
+                    <i class="fas fa-user"></i> User
+                {% endif %}
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <span class="stat-number">{{ user.date_joined|date:"Y" }}</span>
+                    <span class="stat-label">Member Since</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-number">{{ user.last_login|date:"d M"|default:"-" }}</span>
+                    <span class="stat-label">Last Active</span>
+                </div>
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <div class="sidebar-actions">
+                <button onclick="toggleEditMode()" class="sidebar-btn primary" id="editToggleBtn">
+                    <i class="fas fa-edit"></i> <span id="editBtnText">Edit Profile</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Content -->
+        <div class="profile-content">
+            <!-- Edit Mode Toggle (Mobile) -->
+            <div class="mobile-edit-toggle">
+                <button onclick="toggleEditMode()" class="mobile-edit-btn" id="mobileEditBtn">
+                    <i class="fas fa-edit"></i> Edit Profile
+                </button>
+            </div>
+
+            <!-- Profile Form -->
+            <form method="POST" action="{% url 'profile' %}" id="profileForm">
+                {% csrf_token %}
+                
+                <!-- Read Only View -->
+                <div id="readOnlyView">
+                    <div class="content-section">
+                        <div class="section-header">
+                            <h4><i class="fas fa-user"></i> Personal Information</h4>
+                            <span class="section-badge">Read Only</span>
+                        </div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Username</span>
+                                <span class="info-value">{{ user.username }}</span>
+                                <span class="info-hint">Your unique identifier</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Email Address</span>
+                                <span class="info-value">{{ user.email|default:"Not set" }}</span>
+                                <span class="info-hint">Primary contact email</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">First Name</span>
+                                <span class="info-value">{{ user.first_name|default:"Not set" }}</span>
+                                <span class="info-hint">Your given name</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Last Name</span>
+                                <span class="info-value">{{ user.last_name|default:"Not set" }}</span>
+                                <span class="info-hint">Your family name</span>
+                            </div>
+                            <div class="info-item full-width">
+                                <span class="info-label">Full Name</span>
+                                <span class="info-value">{{ user.get_full_name|default:"Not set" }}</span>
+                                <span class="info-hint">Display name</span>
+                            </div>
+                            <div class="info-item full-width">
+                                <span class="info-label">Account Created</span>
+                                <span class="info-value">{{ user.date_joined|date:"F d, Y H:i" }}</span>
+                                <span class="info-hint">Registration date &amp; time</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Edit Mode -->
+                <div id="editMode" style="display: none;">
+                    <div class="content-section">
+                        <div class="section-header">
+                            <h4><i class="fas fa-pen"></i> Edit Personal Information</h4>
+                            <span class="section-badge editing">Editing</span>
+                        </div>
+                        <div class="edit-grid">
+                            <div class="edit-field full-width">
+                                <label>Username <span class="required">*</span></label>
+                                <input type="text" name="username" value="{{ user.username }}" required>
+                                <small>This will be your login identifier</small>
+                            </div>
+                            <div class="edit-field full-width">
+                                <label>Email Address</label>
+                                <input type="email" name="email" value="{{ user.email|default:'' }}" placeholder="Enter your email">
+                                <small>We'll send notifications to this address</small>
+                            </div>
+                            <div class="edit-field">
+                                <label>First Name</label>
+                                <input type="text" name="first_name" value="{{ user.first_name|default:'' }}" placeholder="Enter first name">
+                            </div>
+                            <div class="edit-field">
+                                <label>Last Name</label>
+                                <input type="text" name="last_name" value="{{ user.last_name|default:'' }}" placeholder="Enter last name">
+                            </div>
+                        </div>
+                        <div class="edit-actions">
+                            <button type="submit" name="update_profile" class="btn-save">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                            <button type="button" onclick="cancelEdit()" class="btn-cancel">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Change Password Section -->
+            <div class="content-section password-section">
+                <div class="section-header">
+                    <h4><i class="fas fa-key"></i> Security</h4>
+                    <span class="section-badge">Password</span>
+                </div>
+                <p class="password-hint">Update your password to keep your account secure.</p>
+                
+                <form method="POST" action="{% url 'profile' %}" id="passwordForm">
+                    {% csrf_token %}
+                    
+                    <div class="password-grid">
+                        <div class="password-field full-width">
+                            <label>Current Password</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" name="current_password" placeholder="Enter current password" id="currentPassword">
+                                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('currentPassword')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="password-field">
+                            <label>New Password</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" name="new_password" placeholder="Enter new password" id="newPassword">
+                                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('newPassword')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="password-strength">
+                                <span class="strength-bar"></span>
+                                <span class="strength-text">Password strength: <span id="strengthLabel">Weak</span></span>
+                            </div>
+                        </div>
+                        <div class="password-field">
+                            <label>Confirm New Password</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" name="confirm_password" placeholder="Confirm new password" id="confirmPassword">
+                                <button type="button" class="toggle-password" onclick="togglePasswordVisibility('confirmPassword')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" name="change_password" class="btn-password">
+                        <i class="fas fa-key"></i> Update Password
+                    </button>
+                </form>
+            </div>
+
+            <!-- Account Actions -->
+            <div class="content-section danger-section">
+                <div class="section-header">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Account Actions</h4>
+                </div>
+                <div class="danger-actions">
+                    <button class="btn-danger" onclick="if(confirm('Are you sure you want to logout?')){window.location.href='{% url 'logout' %}'}">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
+                    <button class="btn-danger-outline" onclick="showNotification('Account deletion is disabled for security. Contact admin.')">
+                        <i class="fas fa-trash-alt"></i> Delete Account
+                    </button>
+                </div>
+            </div>
+
+            <div class="profile-footnote">
+                <i class="fas fa-shield-alt"></i>
+                Your information is securely stored and encrypted.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ============================================
+       PROFILE PAGE - ULTRA PREMIUM
+       ============================================ */
+    .profile-page {
+        flex: 1;
+        background: #f0f4f8;
+        min-height: 100vh;
+    }
+
+    /* Page Header */
+    .premium-header {
+        background: white;
+        padding: 24px 40px !important;
+        border-bottom: 1px solid rgba(15, 59, 94, 0.04);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .header-left h2 {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 2px;
+    }
+
+    .header-left h2 i {
+        color: var(--secondary);
+    }
+
+    .header-left p {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .header-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 16px;
+        background: rgba(26, 138, 122, 0.06);
+        border-radius: 30px;
+        border: 1px solid rgba(26, 138, 122, 0.1);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #27ae60;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .status-text {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: #1a8a7a;
+    }
+
+    /* Messages */
+    .messages-container {
+        padding: 16px 40px 0 40px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .message {
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+        border: 1px solid transparent;
+        position: relative;
+        animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.success {
+        background: rgba(26, 138, 122, 0.06);
+        color: var(--secondary);
+        border-color: rgba(26, 138, 122, 0.1);
+    }
+
+    .message.error {
+        background: rgba(231, 76, 60, 0.06);
+        color: #c0392b;
+        border-color: rgba(231, 76, 60, 0.1);
+    }
+
+    .message.info {
+        background: rgba(15, 59, 94, 0.04);
+        color: var(--text-gray);
+        border-color: rgba(15, 59, 94, 0.06);
+    }
+
+    .message i {
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .message span {
+        flex: 1;
+    }
+
+    .message-close {
+        background: none;
+        border: none;
+        font-size: 1.3rem;
+        color: var(--text-light);
+        cursor: pointer;
+        padding: 0 4px;
+        transition: var(--transition);
+    }
+
+    .message-close:hover {
+        color: var(--text-dark);
+    }
+
+    /* Profile Layout */
+    .profile-layout {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 28px;
+        padding: 28px 40px 40px 40px;
+        max-width: 1300px;
+        margin: 0 auto;
+    }
+
+    /* ============================================
+       SIDEBAR
+       ============================================ */
+    .profile-sidebar {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 32px 24px 28px;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        text-align: center;
+        position: sticky;
+        top: 90px;
+        height: fit-content;
+    }
+
+    .profile-avatar-container {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 16px;
+    }
+
+    .profile-avatar {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--secondary), var(--secondary-light));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 3rem;
+        font-weight: 700;
+        box-shadow: 0 8px 32px rgba(26, 138, 122, 0.25);
+        border: 4px solid white;
+        transition: var(--transition);
+    }
+
+    .profile-avatar:hover {
+        transform: scale(1.02);
+        box-shadow: 0 12px 48px rgba(26, 138, 122, 0.35);
+    }
+
+    .avatar-status {
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #27ae60;
+        border: 3px solid white;
+    }
+
+    .avatar-upload-btn {
+        position: absolute;
+        bottom: -6px;
+        right: -6px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--primary);
+        border: 3px solid white;
+        color: white;
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 12px rgba(15, 59, 94, 0.2);
+    }
+
+    .avatar-upload-btn:hover {
+        background: var(--primary-light);
+        transform: scale(1.05);
+    }
+
+    .sidebar-name {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-dark);
+        margin-bottom: 2px;
+    }
+
+    .sidebar-email {
+        font-size: 0.85rem;
+        color: var(--text-gray);
+        margin-bottom: 12px;
+    }
+
+    .sidebar-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 16px;
+        border-radius: 30px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+
+    .sidebar-badge.admin {
+        background: rgba(15, 59, 94, 0.1);
+        color: var(--primary);
+    }
+
+    .sidebar-badge.staff {
+        background: rgba(26, 138, 122, 0.1);
+        color: var(--secondary);
+    }
+
+    .sidebar-badge.user {
+        background: rgba(230, 126, 34, 0.1);
+        color: var(--accent);
+    }
+
+    .sidebar-divider {
+        height: 1px;
+        background: rgba(15, 59, 94, 0.06);
+        margin: 16px 0;
+    }
+
+    .sidebar-stats {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-number {
+        display: block;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-dark);
+    }
+
+    .stat-label {
+        font-size: 0.7rem;
+        color: var(--text-gray);
+        font-weight: 500;
+    }
+
+    .stat-divider {
+        width: 1px;
+        height: 30px;
+        background: rgba(15, 59, 94, 0.06);
+    }
+
+    .sidebar-actions {
+        margin-top: 4px;
+    }
+
+    .sidebar-btn {
+        width: 100%;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .sidebar-btn.primary {
+        background: linear-gradient(135deg, var(--secondary), var(--secondary-light));
+        color: white;
+        box-shadow: 0 4px 16px rgba(26, 138, 122, 0.2);
+    }
+
+    .sidebar-btn.primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(26, 138, 122, 0.3);
+    }
+
+    .sidebar-btn.primary.editing {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        box-shadow: 0 4px 16px rgba(231, 76, 60, 0.2);
+    }
+
+    .sidebar-btn.primary.editing:hover {
+        box-shadow: 0 8px 24px rgba(231, 76, 60, 0.3);
+    }
+
+    /* ============================================
+       PROFILE CONTENT
+       ============================================ */
+    .profile-content {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .mobile-edit-toggle {
+        display: none;
+    }
+
+    .content-section {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 28px 32px;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(15, 59, 94, 0.04);
+        padding-bottom: 14px;
+        margin-bottom: 20px;
+    }
+
+    .section-header h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+    }
+
+    .section-header h4 i {
+        color: var(--secondary);
+    }
+
+    .section-badge {
+        font-size: 0.65rem;
+        padding: 3px 14px;
+        border-radius: 20px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        background: rgba(15, 59, 94, 0.04);
+        color: var(--text-gray);
+    }
+
+    .section-badge.editing {
+        background: rgba(230, 126, 34, 0.1);
+        color: var(--accent);
+    }
+
+    /* Info Grid */
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+
+    .info-item {
+        background: rgba(15, 59, 94, 0.02);
+        padding: 14px 18px;
+        border-radius: var(--radius);
+        border-left: 3px solid var(--secondary);
+        transition: var(--transition);
+    }
+
+    .info-item:hover {
+        background: rgba(15, 59, 94, 0.04);
+    }
+
+    .info-item.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .info-label {
+        display: block;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-gray);
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+
+    .info-value {
+        display: block;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-dark);
+    }
+
+    .info-hint {
+        display: block;
+        font-size: 0.7rem;
+        color: var(--text-light);
+        margin-top: 2px;
+    }
+
+    /* Edit Grid */
+    .edit-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+    }
+
+    .edit-field {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .edit-field.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .edit-field label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-dark);
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .edit-field label .required {
+        color: #e74c3c;
+    }
+
+    .edit-field input {
+        padding: 11px 16px;
+        border: 2px solid rgba(15, 59, 94, 0.08);
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-family: 'Inter', sans-serif;
+        transition: all 0.3s ease;
+        background: var(--bg-light);
+        color: var(--text-dark);
+        width: 100%;
+    }
+
+    .edit-field input:focus {
+        outline: none;
+        border-color: var(--secondary);
+        background: white;
+        box-shadow: 0 0 0 4px rgba(26, 138, 122, 0.06);
+    }
+
+    .edit-field input::placeholder {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    .edit-field small {
+        font-size: 0.7rem;
+        color: var(--text-light);
+        margin-top: 4px;
+    }
+
+    .edit-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+    }
+
+    .btn-save {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, var(--secondary), var(--secondary-light));
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(26, 138, 122, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(26, 138, 122, 0.3);
+    }
+
+    .btn-cancel {
+        padding: 12px 32px;
+        background: rgba(15, 59, 94, 0.06);
+        color: var(--text-gray);
+        border: 2px solid rgba(15, 59, 94, 0.06);
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-cancel:hover {
+        background: rgba(15, 59, 94, 0.1);
+        transform: translateY(-2px);
+    }
+
+    /* Password Section */
+    .password-hint {
+        font-size: 0.85rem;
+        color: var(--text-gray);
+        margin-bottom: 18px;
+    }
+
+    .password-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .password-field {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .password-field.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .password-field label {
+        font-weight: 500;
+        font-size: 0.85rem;
+        color: var(--text-dark);
+        margin-bottom: 6px;
+    }
+
+    .password-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .password-input-wrapper input {
+        width: 100%;
+        padding: 11px 16px;
+        border: 2px solid rgba(15, 59, 94, 0.08);
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-family: 'Inter', sans-serif;
+        transition: all 0.3s ease;
+        background: var(--bg-light);
+        color: var(--text-dark);
+        padding-right: 46px;
+    }
+
+    .password-input-wrapper input:focus {
+        outline: none;
+        border-color: var(--secondary);
+        background: white;
+        box-shadow: 0 0 0 4px rgba(26, 138, 122, 0.06);
+    }
+
+    .toggle-password {
+        position: absolute;
+        right: 12px;
+        background: none;
+        border: none;
+        color: var(--text-light);
+        cursor: pointer;
+        font-size: 0.9rem;
+        padding: 4px 8px;
+        transition: var(--transition);
+    }
+
+    .toggle-password:hover {
+        color: var(--secondary);
+    }
+
+    .password-strength {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .strength-bar {
+        flex: 1;
+        height: 4px;
+        background: rgba(15, 59, 94, 0.06);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .strength-bar::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 0%;
+        border-radius: 4px;
+        background: #e74c3c;
+        transition: width 0.4s ease;
+    }
+
+    .strength-text {
+        font-size: 0.75rem;
+        color: var(--text-gray);
+        white-space: nowrap;
+    }
+
+    .btn-password {
+        margin-top: 16px;
+        padding: 12px 32px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-light));
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(15, 59, 94, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-password:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(15, 59, 94, 0.3);
+    }
+
+    /* Danger Section */
+    .danger-section {
+        border: 1px solid rgba(231, 76, 60, 0.08);
+    }
+
+    .danger-section .section-header h4 {
+        color: #e74c3c;
+    }
+
+    .danger-section .section-header h4 i {
+        color: #e74c3c;
+    }
+
+    .danger-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .btn-danger {
+        padding: 10px 24px;
+        background: #e74c3c;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-danger:hover {
+        background: #c0392b;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(231, 76, 60, 0.2);
+    }
+
+    .btn-danger-outline {
+        padding: 10px 24px;
+        background: transparent;
+        color: #e74c3c;
+        border: 2px solid #e74c3c;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-danger-outline:hover {
+        background: rgba(231, 76, 60, 0.05);
+        transform: translateY(-2px);
+    }
+
+    /* Footnote */
+    .profile-footnote {
+        padding: 14px 20px;
+        background: rgba(15, 59, 94, 0.02);
+        border-radius: var(--radius);
+        border: 1px solid rgba(15, 59, 94, 0.04);
+        font-size: 0.85rem;
+        color: var(--text-gray);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .profile-footnote i {
+        color: var(--secondary);
+        font-size: 1rem;
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (max-width: 1024px) {
+        .profile-layout {
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 20px 24px 32px;
+        }
+
+        .profile-sidebar {
+            position: relative;
+            top: auto;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            text-align: left;
+            align-items: center;
+            gap: 20px;
+            padding: 24px 28px;
+        }
+
+        .profile-avatar-container {
+            margin-bottom: 0;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            font-size: 2.2rem;
+        }
+
+        .avatar-status {
+            width: 14px;
+            height: 14px;
+            bottom: 2px;
+            right: 2px;
+        }
+
+        .avatar-upload-btn {
+            width: 30px;
+            height: 30px;
+            font-size: 0.7rem;
+            bottom: -4px;
+            right: -4px;
+        }
+
+        .sidebar-name {
+            font-size: 1.1rem;
+            margin-bottom: 0;
+        }
+
+        .sidebar-email {
+            margin-bottom: 0;
+            font-size: 0.8rem;
+        }
+
+        .sidebar-badge {
+            margin-bottom: 0;
+        }
+
+        .sidebar-divider {
+            display: none;
+        }
+
+        .sidebar-stats {
+            display: none;
+        }
+
+        .sidebar-actions {
+            margin-top: 0;
+        }
+
+        .sidebar-btn {
+            padding: 10px 20px;
+            font-size: 0.85rem;
+        }
+
+        .mobile-edit-toggle {
+            display: none;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .premium-header {
+            padding: 16px 20px !important;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .header-left h2 {
+            font-size: 1.3rem;
+        }
+
+        .header-left p {
+            font-size: 0.8rem;
+        }
+
+        .messages-container {
+            padding: 12px 20px 0 20px;
+        }
+
+        .profile-layout {
+            padding: 16px 16px 24px;
+            gap: 16px;
+        }
+
+        .profile-sidebar {
+            grid-template-columns: 1fr;
+            text-align: center;
+            gap: 12px;
+            padding: 20px;
+        }
+
+        .profile-avatar-container {
+            margin: 0 auto;
+        }
+
+        .profile-avatar {
+            width: 90px;
+            height: 90px;
+            font-size: 2.5rem;
+        }
+
+        .content-section {
+            padding: 20px 18px;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .edit-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .edit-field.full-width {
+            grid-column: 1;
+        }
+
+        .password-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .password-field.full-width {
+            grid-column: 1;
+        }
+
+        .edit-actions {
+            flex-direction: column;
+        }
+
+        .btn-save, .btn-cancel {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-password {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .danger-actions {
+            flex-direction: column;
+        }
+
+        .btn-danger, .btn-danger-outline {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .profile-footnote {
+            font-size: 0.75rem;
+            padding: 12px 16px;
+            flex-wrap: wrap;
+        }
+
+        .mobile-edit-toggle {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .mobile-edit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--secondary), var(--secondary-light));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 16px rgba(26, 138, 122, 0.2);
+        }
+
+        .mobile-edit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(26, 138, 122, 0.3);
+        }
+    }
+
+    @media (max-width: 480px) {
+        .premium-header {
+            padding: 12px 16px !important;
+        }
+
+        .header-left h2 {
+            font-size: 1.1rem;
+        }
+
+        .header-status {
+            padding: 4px 12px;
+            font-size: 0.7rem;
+        }
+
+        .profile-sidebar {
+            padding: 16px;
+        }
+
+        .profile-avatar {
+            width: 70px;
+            height: 70px;
+            font-size: 2rem;
+        }
+
+        .sidebar-name {
+            font-size: 1rem;
+        }
+
+        .content-section {
+            padding: 16px 14px;
+        }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .section-header h4 {
+            font-size: 0.9rem;
+        }
+
+        .info-item {
+            padding: 10px 14px;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+        }
+
+        .edit-field input {
+            padding: 10px 14px;
+            font-size: 0.85rem;
+        }
+
+        .password-input-wrapper input {
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            padding-right: 40px;
+        }
+
+        .btn-save, .btn-cancel, .btn-password, .btn-danger, .btn-danger-outline {
+            font-size: 0.85rem;
+            padding: 10px 16px;
+        }
+
+        .profile-footnote {
+            font-size: 0.7rem;
+            padding: 10px 12px;
+        }
+    }
+</style>
+
+<script>
+    function toggleEditMode() {
+        const readOnlyView = document.getElementById('readOnlyView');
+        const editMode = document.getElementById('editMode');
+        const editBtn = document.getElementById('editToggleBtn');
+        const mobileEditBtn = document.getElementById('mobileEditBtn');
+        const btnText = document.getElementById('editBtnText');
+        
+        if (editMode.style.display === 'none') {
+            readOnlyView.style.display = 'none';
+            editMode.style.display = 'block';
+            editBtn.classList.add('editing');
+            editBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Edit';
+            if (mobileEditBtn) {
+                mobileEditBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Edit';
+                mobileEditBtn.style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
+            }
+        } else {
+            cancelEdit();
+        }
+    }
+    
+    function cancelEdit() {
+        const readOnlyView = document.getElementById('readOnlyView');
+        const editMode = document.getElementById('editMode');
+        const editBtn = document.getElementById('editToggleBtn');
+        const mobileEditBtn = document.getElementById('mobileEditBtn');
+        
+        readOnlyView.style.display = 'block';
+        editMode.style.display = 'none';
+        editBtn.classList.remove('editing');
+        editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Profile';
+        if (mobileEditBtn) {
+            mobileEditBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Profile';
+            mobileEditBtn.style.background = '';
+        }
+    }
+    
+    // Toggle password visibility
+    function togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const btn = input.parentElement.querySelector('.toggle-password');
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            input.type = 'password';
+            btn.innerHTML = '<i class="fas fa-eye"></i>';
+        }
+    }
+    
+    // Password strength checker
+    document.getElementById('newPassword').addEventListener('input', function() {
+        const password = this.value;
+        const strengthBar = document.querySelector('.strength-bar');
+        const strengthLabel = document.getElementById('strengthLabel');
+        let strength = 0;
+        let color = '#e74c3c';
+        let label = 'Weak';
+        
+        if (password.length >= 8) strength++;
+        if (password.match(/[a-z]/)) strength++;
+        if (password.match(/[A-Z]/)) strength++;
+        if (password.match(/[0-9]/)) strength++;
+        if (password.match(/[^a-zA-Z0-9]/)) strength++;
+        
+        if (strength <= 2) {
+            color = '#e74c3c';
+            label = 'Weak';
+        } else if (strength <= 3) {
+            color = '#f39c12';
+            label = 'Medium';
+        } else if (strength <= 4) {
+            color = '#2ecc71';
+            label = 'Strong';
+        } else {
+            color = '#27ae60';
+            label = 'Very Strong';
+        }
+        
+        const width = (strength / 5) * 100;
+        strengthBar.style.setProperty('--strength-width', width + '%');
+        strengthBar.style.setProperty('background', color);
+        strengthBar.style.setProperty('background-image', `linear-gradient(90deg, ${color} ${width}%, rgba(15,59,94,0.06) ${width}%)`);
+        strengthLabel.textContent = label;
+        strengthLabel.style.color = color;
+    });
+    
+    // Password form validation
+    document.getElementById('passwordForm').addEventListener('submit', function(e) {
+        const currentPassword = document.getElementById('currentPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        
+        if (newPassword && newPassword.length < 8) {
+            e.preventDefault();
+            alert('Password must be at least 8 characters long.');
+            return false;
+        }
+        
+        if (newPassword && newPassword !== confirmPassword) {
+            e.preventDefault();
+            alert('New passwords do not match.');
+            return false;
+        }
+    });
+    
+    // Notification function
+    function showNotification(message) {
+        alert(message);
+    }
+</script>
+{% endblock %}
