@@ -34,9 +34,9 @@ from .forms import *
 logger = logging.getLogger(__name__)
 
 
-# ========================================
+# =====================================
 # ADMIN AUTHENTICATION VIEWS
-# ============================================
+# =======================================
 
 def admin_login_view(request):
     """Admin login page with role-based redirection"""
