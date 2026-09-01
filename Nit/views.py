@@ -727,6 +727,7 @@ def map_view(request):
 #     return JsonResponse(geojson)
 
 
+
 @login_required
 def buildings_geojson(request, corporation_id=None):
     """API endpoint - Return geometry converted to WGS84 for map display"""
@@ -741,7 +742,7 @@ def buildings_geojson(request, corporation_id=None):
         return [lon, lat]
     
     def convert_coords(coords):
-        """Recursively convert coordinates from 3857 to 4326"""
+        """Recursively convert coordinates from 3857 to 4326, or keep if already 4326"""
         if not coords:
             return coords
         
@@ -749,11 +750,11 @@ def buildings_geojson(request, corporation_id=None):
             return [convert_coords(c) for c in coords]
         else:
             if len(coords) >= 2:
-                # Check if coordinates are in Web Mercator
+                # Check if coordinates are in Web Mercator (huge numbers)
                 if abs(coords[0]) > 1000000 or abs(coords[1]) > 1000000:
                     return web_mercator_to_wgs84(coords[0], coords[1])
                 else:
-                    # Already in WGS84
+                    # Already in WGS84 (e.g., 78.1633) - return as is!
                     return [coords[0], coords[1]]
             return coords
     

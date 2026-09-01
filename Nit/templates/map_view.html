@@ -1728,12 +1728,22 @@ function safeSetValue(id, value) {
 // CONVERT EPSG:3857 TO EPSG:4326 (Lat/Lng)
 // ============================================
 function convert3857to4326(x, y) {
-    var lng = (x / 20037508.34) * 180;
-    var lat = (y / 20037508.34) * 180;
-    lat = 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180)) - Math.PI / 2);
-    return { lat: lat, lng: lng };
-}
 
+    // Client GeoJSON coordinates are stored in reverse order.
+    const swappedX = y;
+    const swappedY = x;
+
+    const lonLat = ol.proj.transform(
+        [swappedX, swappedY],
+        'EPSG:3857',
+        'EPSG:4326'
+    );
+
+    return {
+        lat: lonLat[1],
+        lng: lonLat[0]
+    };
+}
 // ============================================
 // NORMALIZE BUILDING GEOJSON COORDINATES
 // ============================================
@@ -1773,26 +1783,35 @@ function normalizeGeoJSON(geojson) {
     return normalized;
 }
 
-// =======================================
-// PARSE COORDINATES - AUTO DETECT FORMAT
+// ============================================
+// PARSE COORDINATES - CONVERT 3857 TO 4326 BEFORE SAVING
 // ============================================
 function parseCoordinates(text) {
     if (!text || typeof text !== 'string') return null;
     var lines = text.trim().split('\n');
     var storageCoords = [];
+    
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim();
         if (line === '') continue;
         var parts = line.split(',');
+        
         if (parts.length === 2) {
             var val1 = parseFloat(parts[0].trim());
             var val2 = parseFloat(parts[1].trim());
+            
             if (!isNaN(val1) && !isNaN(val2)) {
-                if (Math.abs(val1) > 100000 || Math.abs(val2) > 100000) {
-                    var converted = convert3857to4326(val1, val2);
-                    storageCoords.push([converted.lng, converted.lat]);
-                    console.log('🔄 Converted 3857 → 4326:', val1 + ',' + val2, '→', converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6));
-                } else {
+                
+                // IF IT IS THE HUGE MAP COORDINATES (EPSG:3857)
+                if (Math.abs(val1) > 100000 && Math.abs(val2) > 100000) {
+                    // Convert to EPSG:4326 [Lng, Lat]
+                    var converted = ol.proj.transform([val1, val2], 'EPSG:3857', 'EPSG:4326');
+                    storageCoords.push([converted[0], converted[1]]); 
+                    console.log('Converted 3857 to 4326:', converted);
+                } 
+                // IF IT IS ALREADY LAT/LNG (11.6538...)
+                else {
+                    // Input is "Lat, Lng" -> Convert to "Lng, Lat" for standard GeoJSON
                     storageCoords.push([val2, val1]);
                 }
             }
@@ -1800,8 +1819,7 @@ function parseCoordinates(text) {
     }
     return storageCoords.length > 0 ? storageCoords : null;
 }
-
-// ======================================
+// ============================================
 // FORMAT COORDINATES FOR DISPLAY
 // ============================================
 function formatCoordinatesForDisplay(coords) {
@@ -1986,48 +2004,72 @@ function loadBuildings() {
         });
 }
 
-// ============================================
-// RENDER BUILDINGS - COMPLETE FIXED VERSION
-// ============================================
 function renderBuildings(geojson) {
+
     if (!geojson || !geojson.features || !vectorSource) {
         console.warn('No GeoJSON data or vectorSource not ready');
         return;
     }
 
     console.log('📊 Rendering ' + geojson.features.length + ' buildings');
-
     vectorSource.clear();
 
     /*
-     * YOUR MAP REMAINS EPSG:3857.
+     * ROBUST COORDINATE HANDLING
+     * 1. Checks if coordinates are Lat/Lng (EPSG:4326) -> Range: -180 to 180 (Lng), -90 to 90 (Lat)
+     * 2. Checks if coordinates are Web Mercator (EPSG:3857) -> Range: +/- 20,000,000
      *
-     * Client building coordinates arrive as:
-     *     [1306xxx, 8701xxx]
-     *
-     * For this dataset, the values are reversed relative to
-     * the EPSG:3857 X,Y order required by OpenLayers:
-     *     X = 8701xxx
-     *     Y = 1306xxx
-     *
-     * We therefore:
-     *   1. Read the client coordinates as raw EPSG:3857 values.
-     *   2. Swap the coordinate pair in the OpenLayers geometry.
-     *   3. Keep the resulting geometry in EPSG:3857.
-     *
-     * The original GeoJSON object is never modified.
+     * We normalize everything to EPSG:4326 [Lng, Lat] before handing it to OpenLayers.
      */
+    var fixedGeoJSON = JSON.parse(JSON.stringify(geojson));
+
+    function normalizeCoordinates(coords) {
+        // If this is a single coordinate pair [X, Y]
+        if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+            var x = coords[0];
+            var y = coords[1];
+
+            // If it's already Lat/Lng (EPSG:4326)
+            if (Math.abs(x) <= 180 && Math.abs(y) <= 90) {
+                return [x, y]; // Return [Lng, Lat] as is
+            }
+            // If it's EPSG:3857 (Web Mercator)
+            else if (Math.abs(x) > 100000 && Math.abs(y) > 100000) {
+                // Convert [X, Y] to [Lng, Lat]
+                var converted = ol.proj.transform([x, y], 'EPSG:3857', 'EPSG:4326');
+                return [converted[0], converted[1]];
+            }
+            // Fallback: return as is (assume it's Lat/Lng)
+            return [x, y];
+        }
+        // If this is an array of coordinates (Polygon / MultiPolygon etc.)
+        if (Array.isArray(coords)) {
+            return coords.map(function(item) {
+                return normalizeCoordinates(item);
+            });
+        }
+        return coords;
+    }
+
+    // Apply normalization to every geometry
+    fixedGeoJSON.features.forEach(function(feature) {
+        if (feature.geometry && feature.geometry.coordinates) {
+            feature.geometry.coordinates = normalizeCoordinates(feature.geometry.coordinates);
+        }
+    });
+
+    console.log('🔄 Coordinates normalized to EPSG:4326 (Lng, Lat)');
 
     var format = new ol.format.GeoJSON();
     var features;
 
     try {
-        features = format.readFeatures(geojson, {
-            dataProjection: 'EPSG:3857',
-            featureProjection: 'EPSG:3857'
+        features = format.readFeatures(fixedGeoJSON, {
+            dataProjection: 'EPSG:4326', // We normalized it to this
+            featureProjection: 'EPSG:3857' // Map uses this
         });
     } catch (e) {
-        console.error('Error reading GeoJSON:', e);
+        console.error('❌ Error reading corrected GeoJSON:', e);
         return;
     }
 
@@ -2036,179 +2078,98 @@ function renderBuildings(geojson) {
         return;
     }
 
-    /*
-     * Swap coordinates recursively on the OpenLayers geometry.
-     * This works for Polygon, MultiPolygon, LineString, etc.
-     */
-    function swapCoordinateTree(coords) {
-        if (!Array.isArray(coords)) {
-            return coords;
-        }
-
-        if (
-            coords.length >= 2 &&
-            typeof coords[0] === 'number' &&
-            typeof coords[1] === 'number'
-        ) {
-            var swapped = coords.slice();
-            swapped[0] = coords[1];
-            swapped[1] = coords[0];
-            return swapped;
-        }
-
-        return coords.map(function(item) {
-            return swapCoordinateTree(item);
-        });
-    }
-
-    features.forEach(function(feature, index) {
-        var geometry = feature.getGeometry();
-
-        if (!geometry) {
-            return;
-        }
-
-        var correctedGeometry = geometry.clone();
-
-        correctedGeometry.setCoordinates(
-            swapCoordinateTree(correctedGeometry.getCoordinates())
-        );
-
-        feature.setGeometry(correctedGeometry);
-
+    features.forEach(function(feature) {
         var props = feature.getProperties();
-        var color = getCorporationColor(
-            props.corporation || ''
-        );
+        var geom = feature.getGeometry();
 
-        feature.setStyle(
-            new ol.style.Style({
-                fill: new ol.style.Fill({
-                    color: color + '33'
-                }),
-                stroke: new ol.style.Stroke({
-                    color: color,
-                    width: 3
-                }),
-                zIndex: 1
-            })
-        );
+        if (!geom) return;
 
-        feature.set(
-            'buildingId',
-            props.id || props.OBJECTID || props.GIS_ID
-        );
+        var color = getCorporationColor(props.corporation || '');
 
-        feature.set(
-            'gisId',
-            props.gis_id || props.GIS_ID
-        );
+        var style = new ol.style.Style({
+            fill: new ol.style.Fill({ color: color + '33' }),
+            stroke: new ol.style.Stroke({ color: color, width: 3 }),
+            zIndex: 1
+        });
 
-        feature.set(
-            'buildingName',
-            props.building_name || props.name || 'Unnamed'
-        );
+        feature.setStyle(style);
 
-        feature.set(
-            'corporation',
-            props.corporation || 'Unknown'
-        );
-
-        feature.set(
-            'area',
-            props.area || props.sqft || 0
-        );
-
-        feature.set(
-            'buildingType',
-            props.building_type || 'Other'
-        );
-
-        if (index === 0) {
-            console.log(
-                '🔄 First building geometry corrected from [Y,X] to [X,Y]'
-            );
-        }
+        feature.set('buildingId', props.id || props.OBJECTID || props.GIS_ID);
+        feature.set('gisId', props.gis_id || props.GIS_ID);
+        feature.set('buildingName', props.building_name || props.name || 'Unnamed');
+        feature.set('corporation', props.corporation || 'Unknown');
+        feature.set('area', props.area || props.sqft || 0);
+        feature.set('buildingType', props.building_type || 'Other');
     });
 
     vectorSource.addFeatures(features);
+    console.log('✅ Added ' + features.length + ' correctly positioned buildings');
 
-    /*
-     * IMPORTANT:
-     * Do NOT fit the map to all 2,568 buildings here.
-     *
-     * The map starts at your known-good Salem EPSG:3857 view.
-     * Individual buildings can be fitted by zoomToBuilding().
-     */
-    map.render();
+    var hasSavedPosition = window.mapRestorePosition && window.mapRestorePosition.lat && window.mapRestorePosition.lng;
 
-    console.log(
-        '✅ Rendered ' + features.length +
-        ' buildings with corrected EPSG:3857 coordinates'
-    );
+    if (!hasSavedPosition) {
+        try {
+            var extent = vectorSource.getExtent();
+            if (extent && !ol.extent.isEmpty(extent)) {
+                map.getView().fit(extent, {
+                    padding: [80, 80, 80, 80],
+                    maxZoom: 19,
+                    duration: 800
+                });
+                console.log('✅ Map fitted to corrected building extent');
+            }
+        } catch (e) {
+            console.error('❌ Error fitting map to buildings:', e);
+        }
+    }
 }
-
 function renderBuildingsWithoutFit(geojson) {
     if (!geojson || !geojson.features || !vectorSource) {
         return;
     }
-
+    
     vectorSource.clear();
+    
+    // Use the same normalization logic as renderBuildings
+    var fixedGeoJSON = JSON.parse(JSON.stringify(geojson));
 
+    function normalizeCoordinates(coords) {
+        if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+            var x = coords[0];
+            var y = coords[1];
+
+            if (Math.abs(x) <= 180 && Math.abs(y) <= 90) {
+                return [x, y];
+            } else if (Math.abs(x) > 100000 && Math.abs(y) > 100000) {
+                var converted = ol.proj.transform([x, y], 'EPSG:3857', 'EPSG:4326');
+                return [converted[0], converted[1]];
+            }
+            return [x, y];
+        }
+        if (Array.isArray(coords)) {
+            return coords.map(function(item) {
+                return normalizeCoordinates(item);
+            });
+        }
+        return coords;
+    }
+
+    fixedGeoJSON.features.forEach(function(feature) {
+        if (feature.geometry && feature.geometry.coordinates) {
+            feature.geometry.coordinates = normalizeCoordinates(feature.geometry.coordinates);
+        }
+    });
+    
     var format = new ol.format.GeoJSON();
-    var features;
-
-    try {
-        features = format.readFeatures(geojson, {
-            dataProjection: 'EPSG:3857',
-            featureProjection: 'EPSG:3857'
-        });
-    } catch (e) {
-        console.error('Error reading GeoJSON:', e);
-        return;
-    }
-
-    function swapCoordinateTree(coords) {
-        if (!Array.isArray(coords)) {
-            return coords;
-        }
-
-        if (
-            coords.length >= 2 &&
-            typeof coords[0] === 'number' &&
-            typeof coords[1] === 'number'
-        ) {
-            var swapped = coords.slice();
-            swapped[0] = coords[1];
-            swapped[1] = coords[0];
-            return swapped;
-        }
-
-        return coords.map(function(item) {
-            return swapCoordinateTree(item);
-        });
-    }
-
+    var features = format.readFeatures(fixedGeoJSON, {
+        dataProjection: 'EPSG:4326', // Changed from EPSG:3857 to EPSG:4326
+        featureProjection: 'EPSG:3857'
+    });
+    
     features.forEach(function(feature) {
-        var geometry = feature.getGeometry();
-
-        if (!geometry) {
-            return;
-        }
-
-        var correctedGeometry = geometry.clone();
-
-        correctedGeometry.setCoordinates(
-            swapCoordinateTree(correctedGeometry.getCoordinates())
-        );
-
-        feature.setGeometry(correctedGeometry);
-
         var props = feature.getProperties();
-        var color = getCorporationColor(
-            props.corporation || ''
-        );
-
+        var color = getCorporationColor(props.corporation || '');
+        
         feature.setStyle(
             new ol.style.Style({
                 fill: new ol.style.Fill({
@@ -2220,45 +2181,18 @@ function renderBuildingsWithoutFit(geojson) {
                 })
             })
         );
-
-        feature.set(
-            'buildingId',
-            props.id || props.OBJECTID || props.GIS_ID
-        );
-
-        feature.set(
-            'gisId',
-            props.gis_id || props.GIS_ID
-        );
-
-        feature.set(
-            'buildingName',
-            props.building_name || props.name || 'Unnamed'
-        );
-
-        feature.set(
-            'corporation',
-            props.corporation || 'Unknown'
-        );
-
-        feature.set(
-            'area',
-            props.area || props.sqft || 0
-        );
-
-        feature.set(
-            'buildingType',
-            props.building_type || 'Other'
-        );
+        
+        feature.set('buildingId', props.id || props.OBJECTID || props.GIS_ID);
+        feature.set('gisId', props.gis_id || props.GIS_ID);
+        feature.set('buildingName', props.building_name || props.name || 'Unnamed');
+        feature.set('corporation', props.corporation || 'Unknown');
+        feature.set('area', props.area || props.sqft || 0);
+        feature.set('buildingType', props.building_type || 'Other');
     });
-
+    
     vectorSource.addFeatures(features);
     map.render();
-
-    console.log(
-        '✅ Rendered ' + features.length +
-        ' buildings without changing the current map view'
-    );
+    console.log('✅ Rendered ' + features.length + ' buildings without fit');
 }
 
 // ============================================
@@ -2295,42 +2229,54 @@ function enableDrawMode() {
 }
 
 // ============================================
-// FINISH DRAWING
+// FINISH DRAWING (FIXED)
 // ============================================
 function finishDrawing(event) {
     var feature = event.feature;
     var geometry = feature.getGeometry();
-    var coords = geometry.getCoordinates()[0];
-    var formattedCoords = coords.map(function(c) {
-        var transformed = ol.proj.transform(c, 'EPSG:3857', 'EPSG:4326');
-        return [transformed[0], transformed[1]];
+    
+    // Get coordinates in EPSG:3857 from the map
+    var coords3857 = geometry.getCoordinates()[0];
+    
+    // Convert map coordinates (EPSG:3857) to standard Geographic coordinates (EPSG:4326)
+    // OpenLayers returns [Lng, Lat] when converting to 4326
+    var formattedCoords = coords3857.map(function(c) {
+        return ol.proj.transform(c, 'EPSG:3857', 'EPSG:4326');
     });
+
+    // Calculate center for location detection
     var centerLat = 0;
     var centerLng = 0;
     formattedCoords.forEach(function(p) {
-        centerLat += p[1];
-        centerLng += p[0];
+        centerLat += p[1]; // p[1] is Latitude
+        centerLng += p[0]; // p[0] is Longitude
     });
     centerLat = centerLat / formattedCoords.length;
     centerLng = centerLng / formattedCoords.length;
+    
     var locationName = detectLocation(centerLat, centerLng);
-    console.log('📍 Drawing at:', locationName);
+    console.log('📍 Drawing at:', locationName, 'Coords:', formattedCoords);
+    
     currentPolygonCoords = formattedCoords;
+    
     map.removeInteraction(drawInteraction);
     drawInteraction = null;
     isDrawing = false;
+    
     var drawBtn = document.getElementById('drawBtn');
     var cancelBtn = document.getElementById('cancelDrawBtn');
     if (drawBtn) drawBtn.style.display = 'inline-flex';
     if (cancelBtn) cancelBtn.style.display = 'none';
+
     feature.setStyle(new ol.style.Style({
         fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.12)' }),
         stroke: new ol.style.Stroke({ color: '#10b981', width: 4 })
     }));
+
+    // Pass the LAT/LNG coords to the modal
     openBuildingFormModal(formattedCoords, locationName);
     showToast('✅ Polygon drawn at ' + locationName + '!', 'success');
 }
-
 // ============================================
 // CANCEL DRAWING
 // ============================================
@@ -2368,20 +2314,23 @@ function openBuildingFormModal(coords, locationName) {
     safeSetText('displayBuildingId', '#NEW');
     var form = document.getElementById('buildingForm');
     if (form) form.reset();
-    var displayText = '';
+        var displayText = '';
     if (coords && Array.isArray(coords)) {
         var lines = coords.map(function(p) {
             if (Array.isArray(p) && p.length === 2) {
-                var x = parseFloat(p[0]);
-                var y = parseFloat(p[1]);
-                if (Math.abs(x) > 100000 || Math.abs(y) > 100000) {
-                    var converted = convert3857to4326(x, y);
-                    return converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6);
-                } else {
-                    return y.toFixed(6) + ',' + x.toFixed(6);
+                var x = Number(p[0]); // Longitude (Lng)
+                var y = Number(p[1]); // Latitude (Lat)
+
+                // Check if it's EPSG:3857 (huge numbers) and convert
+                if (Math.abs(x) > 100000 && Math.abs(y) > 100000) {
+                    var converted = ol.proj.transform([x, y], 'EPSG:3857', 'EPSG:4326');
+                    return converted[1].toFixed(6) + "," + converted[0].toFixed(6); // Lat, Lng
                 }
+
+                // It's already Lat/Lng, just format it as "Lat, Lng"
+                return y.toFixed(6) + "," + x.toFixed(6);
             }
-            return '';
+            return "";
         });
         displayText = lines.join('\n');
     }
