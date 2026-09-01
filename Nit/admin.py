@@ -3,52 +3,38 @@ from .models import Building, Corporation
 
 @admin.register(Corporation)
 class CorporationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'status', 'total_buildings', 'total_area', 'created_at']
-    list_filter = ['status', 'created_at']
-    search_fields = ['name', 'code', 'description']
+    list_display = ['id', 'name', 'code', 'created_at']
+    search_fields = ['name', 'code']
     readonly_fields = ['created_at', 'updated_at']
-    
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'code', 'description', 'status')
-        }),
-        ('Statistics', {
-            'fields': ('total_area', 'total_buildings', 'total_surveys', 'coverage_percentage')
-        }),
-        ('GIS Data', {
-            'fields': ('geometry', 'centroid', 'geojson_file')
-        }),
-        ('Metadata', {
-            'fields': ('created_at', 'updated_at', 'created_by'),
-            'classes': ('collapse',)
-        }),
-    )
-
 
 @admin.register(Building)
 class BuildingAdmin(admin.ModelAdmin):
-    list_display = ['building_number', 'building_name', 'building_type', 'area', 'owner_name', 'city', 'corporation']
-    list_filter = ['building_type', 'city', 'corporation']
-    search_fields = ['building_number', 'building_name', 'owner_name', 'address', 'city', 'gis_id']
-    readonly_fields = ['gis_id']
+    list_display = ['id', 'gis_id', 'building_name', 'building_type', 'corporation', 'area', 'created_at']
+    list_filter = ['building_type', 'corporation', 'city']
+    search_fields = ['gis_id', 'building_name', 'building_number', 'owner_name']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    def get_geometry_display(self, obj):
+        if obj.geometry:
+            return f"Polygon at ({obj.geometry.centroid.x:.6f}, {obj.geometry.centroid.y:.6f})"
+        return "No geometry"
+    get_geometry_display.short_description = 'Geometry Location'
     
     fieldsets = (
-        ('Identification', {
-            'fields': ('gis_id', 'building_number', 'building_name')
+        ('Basic Information', {
+            'fields': ('gis_id', 'building_name', 'building_number')
         }),
-        ('Location', {
-            'fields': ('address', 'city', 'state', 'pincode')
-        }),
-        ('GIS Data', {
-            'fields': ('geometry',)
+        ('Location & Geometry', {
+            'fields': ('geometry', 'corporation', 'ward', 'city', 'state', 'pincode')
         }),
         ('Building Details', {
-            'fields': ('building_type', 'area', 'floors', 'year_built')
+            'fields': ('building_type', 'floors', 'area')
         }),
-        ('Ownership', {
+        ('Owner Information', {
             'fields': ('owner_name', 'owner_contact')
         }),
-        ('Corporation', {
-            'fields': ('corporation',)
+        ('Metadata', {
+            'fields': ('is_active', 'created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
         }),
     )

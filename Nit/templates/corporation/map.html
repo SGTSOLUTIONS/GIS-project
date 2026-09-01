@@ -104,13 +104,13 @@
         background: #f5f7fa;
         min-height: 100vh;
     }
-    
+
     .premium-header {
         background: white;
         padding: 24px 32px 16px !important;
         border-bottom: 1px solid rgba(15, 59, 94, 0.04);
     }
-    
+
     .premium-header h2 {
         font-size: 1.6rem;
         font-weight: 700;
@@ -120,17 +120,17 @@
         gap: 12px;
         margin: 0;
     }
-    
+
     .premium-header h2 i {
         color: #1a8a7a;
     }
-    
+
     .premium-header p {
         color: #6b7a8a;
         margin: 4px 0 0 0;
         font-size: 0.95rem;
     }
-    
+
     .premium-stats-row {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -138,7 +138,7 @@
         padding: 20px 32px 24px !important;
         background: transparent !important;
     }
-    
+
     .stat-card-premium {
         background: white;
         border-radius: 12px;
@@ -146,16 +146,16 @@
         display: flex;
         align-items: center;
         gap: 14px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         border: 1px solid rgba(15, 59, 94, 0.04);
         transition: all 0.3s ease;
     }
-    
+
     .stat-card-premium:hover {
         transform: translateY(-4px);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
     }
-    
+
     .stat-card-icon {
         width: 48px;
         height: 48px;
@@ -166,25 +166,40 @@
         font-size: 1.2rem;
         flex-shrink: 0;
     }
-    
-    .stat-card-icon.blue { background: rgba(15, 59, 94, 0.08); color: #0f3b5e; }
-    .stat-card-icon.green { background: rgba(26, 138, 122, 0.08); color: #1a8a7a; }
-    .stat-card-icon.orange { background: rgba(230, 126, 34, 0.08); color: #e67e22; }
-    .stat-card-icon.purple { background: rgba(155, 89, 182, 0.08); color: #8e44ad; }
-    
+
+    .stat-card-icon.blue {
+        background: rgba(15, 59, 94, 0.08);
+        color: #0f3b5e;
+    }
+
+    .stat-card-icon.green {
+        background: rgba(26, 138, 122, 0.08);
+        color: #1a8a7a;
+    }
+
+    .stat-card-icon.orange {
+        background: rgba(230, 126, 34, 0.08);
+        color: #e67e22;
+    }
+
+    .stat-card-icon.purple {
+        background: rgba(155, 89, 182, 0.08);
+        color: #8e44ad;
+    }
+
     .stat-card-info {
         flex: 1;
         display: flex;
         flex-direction: column;
     }
-    
+
     .stat-card-number {
         font-size: 1.4rem;
         font-weight: 700;
         color: #1a2a3a;
         line-height: 1.2;
     }
-    
+
     .stat-card-label {
         font-size: 0.75rem;
         color: #6b7a8a;
@@ -192,7 +207,7 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
+
     .map-controls {
         padding: 0 32px 20px 32px;
         display: flex;
@@ -200,7 +215,7 @@
         flex-wrap: wrap;
         align-items: center;
     }
-    
+
     .control-group {
         display: flex;
         align-items: center;
@@ -208,12 +223,12 @@
         background: white;
         padding: 8px 16px;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         border: 1px solid rgba(15, 59, 94, 0.04);
         flex: 1;
         max-width: 350px;
     }
-    
+
     .control-group label {
         font-weight: 600;
         color: #1a2a3a;
@@ -223,11 +238,11 @@
         font-size: 0.9rem;
         white-space: nowrap;
     }
-    
+
     .control-group label i {
         color: #1a8a7a;
     }
-    
+
     .control-group select {
         padding: 6px 12px;
         border-radius: 8px;
@@ -241,11 +256,11 @@
         min-width: 120px;
         transition: border-color 0.2s;
     }
-    
+
     .control-group select:focus {
         border-color: #1a8a7a;
     }
-    
+
     .btn-control {
         padding: 8px 20px;
         border: none;
@@ -262,36 +277,28 @@
         font-size: 0.9rem;
         white-space: nowrap;
     }
-    
+
     .btn-control:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(26, 138, 122, 0.3);
     }
-    
+
     .btn-control.secondary {
         background: white;
         color: #1a2a3a;
         border: 1px solid rgba(15, 59, 94, 0.1);
     }
-    
+
     .btn-control.secondary:hover {
         background: #f5f7fa;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         transform: translateY(-2px);
     }
-    
+
     .map-container {
         padding: 0 32px 24px 32px;
     }
-    
-    #map {
-        height: 550px;
-        width: 100%;
-        border-radius: 16px;
-        border: 1px solid rgba(15, 59, 94, 0.06);
-        background: #e8ecf0;
-    }
-    
+
     .corp-banner {
         background: linear-gradient(135deg, #0f3b5e, #1a5276);
         color: white;
@@ -304,76 +311,76 @@
         flex-wrap: wrap;
         gap: 12px;
     }
-    
+
     .corp-banner .btn-back {
-        background: rgba(255,255,255,0.15);
+        background: rgba(255, 255, 255, 0.15);
         color: white;
         padding: 6px 16px;
         border-radius: 8px;
         text-decoration: none;
         font-weight: 600;
         transition: all 0.3s ease;
-        border: 1px solid rgba(255,255,255,0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .corp-banner .btn-back:hover {
-        background: rgba(255,255,255,0.25);
+        background: rgba(255, 255, 255, 0.25);
         transform: translateX(-2px);
     }
-    
+
     .custom-marker {
         background: none;
         border: none;
     }
-    
+
     .building-popup .leaflet-popup-content-wrapper {
         border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         background: white;
     }
-    
+
     .building-popup .leaflet-popup-content {
         font-family: 'Inter', sans-serif;
         padding: 12px 8px;
         min-width: 200px;
         max-width: 300px;
     }
-    
+
     .building-popup .leaflet-popup-tip {
         background: white;
     }
-    
+
     .info-message {
         background: white;
         padding: 20px 30px;
         border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         text-align: center;
         max-width: 300px;
     }
-    
+
     .info-message .icon {
         font-size: 2.5rem;
         margin-bottom: 10px;
     }
-    
+
     .info-message h4 {
         margin: 0 0 8px 0;
         color: #1a2a3a;
     }
-    
+
     .info-message p {
         margin: 0;
         color: #6b7a8a;
         font-size: 0.9rem;
     }
-    
+
     /* Cluster styles */
     .cluster-marker {
         background: none;
         border: none;
     }
-    
+
     @media (max-width: 768px) {
         .corp-banner {
             margin: 0 16px 12px 16px;
@@ -381,70 +388,70 @@
             align-items: stretch;
             text-align: center;
         }
-        
+
         .premium-header {
             padding: 16px 20px 12px !important;
         }
-        
+
         .premium-header h2 {
             font-size: 1.3rem;
         }
-        
+
         .premium-stats-row {
             grid-template-columns: 1fr 1fr;
             padding: 12px 16px 16px !important;
             gap: 10px;
         }
-        
+
         .stat-card-premium {
             padding: 14px 16px;
         }
-        
+
         .stat-card-number {
             font-size: 1.1rem;
         }
-        
+
         .map-controls {
             padding: 0 16px 16px 16px !important;
             flex-direction: column;
             align-items: stretch;
         }
-        
+
         .control-group {
             max-width: 100%;
             flex-wrap: wrap;
         }
-        
+
         .map-container {
             padding: 0 16px 16px 16px;
         }
-        
+
         #map {
             height: 400px;
         }
-        
+
         .btn-control {
             justify-content: center;
         }
     }
-    
+
     @media (max-width: 480px) {
         .premium-stats-row {
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
-        
+
         .stat-card-premium {
             padding: 12px;
             gap: 10px;
         }
-        
+
         .stat-card-icon {
             width: 36px;
             height: 36px;
             font-size: 1rem;
         }
-        
+
         #map {
             height: 300px;
         }
@@ -457,7 +464,7 @@
     var clusterGroup = null;
     var isClustering = false;
     var currentLayer = 'satellite';
-    
+
     // Map layers configuration
     var mapLayers = {
         'satellite': L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
@@ -507,7 +514,7 @@
     function createClusterIcon(cluster) {
         var count = cluster.getChildCount();
         var color = count > 50 ? '#e74c3c' : count > 20 ? '#e67e22' : '#3498db';
-        
+
         return L.divIcon({
             html: `<div style="background:${color};color:white;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.2);border:2px solid white;">${count}</div>`,
             className: 'cluster-marker',
@@ -548,13 +555,14 @@
         };
         loadingControl.addTo(map);
 
-        // Fetch building data from GeoJSON endpoint
-        // For corporation specific, use the corporation endpoint
+        // ✅ FIX: Use the correct endpoint for corporation buildings (4326)
         var url = '/buildings-geojson/';
         {% if selected_corp %}
-        url = '/buildings-geojson/corporation/{{ selected_corp.id }}/';
+        url = '/api/corporation/{{ selected_corp.id }}/buildings-geojson/';
         {% endif %}
         
+        console.log('📡 Fetching data from:', url);
+
         fetch(url)
             .then(response => {
                 if (!response.ok) {
@@ -564,7 +572,9 @@
             })
             .then(data => {
                 map.removeControl(loadingControl);
-                
+
+                console.log('📊 Data loaded:', data.features ? data.features.length : 0, 'features');
+
                 if (data.features && data.features.length > 0) {
                     renderGeoJSON(data);
                 } else {
@@ -585,13 +595,57 @@
 
     function renderGeoJSON(data) {
         var features = data.features;
-        
+
+        // ✅ Convert coordinates from 3857 to 4326 if needed
+        function webMercatorToWgs84(x, y) {
+            var lon = (x / 20037508.34) * 180;
+            var lat = (y / 20037508.34) * 180;
+            lat = 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180)) - Math.PI / 2);
+            return [lon, lat];
+        }
+
+        function convertCoords(coords) {
+            if (!coords || !Array.isArray(coords)) return coords;
+            
+            if (Array.isArray(coords[0])) {
+                return coords.map(convertCoords);
+            } else {
+                if (coords.length >= 2) {
+                    // Check if coordinates are in Web Mercator (large numbers)
+                    if (Math.abs(coords[0]) > 1000000 || Math.abs(coords[1]) > 1000000) {
+                        return webMercatorToWgs84(coords[0], coords[1]);
+                    }
+                    return coords;
+                }
+                return coords;
+            }
+        }
+
+        // Convert all feature geometries if needed
+        var convertedFeatures = features.map(function(feature) {
+            if (feature.geometry && feature.geometry.coordinates) {
+                // Check if first coordinate is Web Mercator
+                var firstCoord = feature.geometry.coordinates;
+                while (Array.isArray(firstCoord) && firstCoord.length > 0) {
+                    if (typeof firstCoord[0] === 'number' && typeof firstCoord[1] === 'number') {
+                        if (Math.abs(firstCoord[0]) > 1000000 || Math.abs(firstCoord[1]) > 1000000) {
+                            feature.geometry.coordinates = convertCoords(feature.geometry.coordinates);
+                            console.log('✅ Converted coordinates from 3857 to 4326');
+                        }
+                        break;
+                    }
+                    firstCoord = firstCoord[0];
+                }
+            }
+            return feature;
+        });
+
         // Create GeoJSON layer
-        geojsonLayer = L.geoJSON(features, {
+        geojsonLayer = L.geoJSON(convertedFeatures, {
             style: function(feature) {
                 var area = feature.properties.area || 0;
                 var color = getColorByArea(area);
-                
+
                 return {
                     color: color,
                     weight: 2,
@@ -604,7 +658,7 @@
             onEachFeature: function(feature, layer) {
                 var props = feature.properties;
                 var color = getColorByArea(props.area || 0);
-                
+
                 var popupContent = `
                     <div style="font-family: 'Inter', sans-serif; min-width: 200px;">
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:8px;">
@@ -629,14 +683,17 @@
                         <p style="margin:4px 0;color:#5a7a8a;font-size:0.85rem;">
                             <strong>City:</strong> ${props.city || 'New Delhi'}
                         </p>
+                        <p style="margin:4px 0;color:#5a7a8a;font-size:0.85rem;">
+                            <strong>Corporation:</strong> ${props.corporation || props.corporation_name || 'N/A'}
+                        </p>
                     </div>
                 `;
-                
+
                 layer.bindPopup(popupContent, {
                     className: 'building-popup',
                     maxWidth: 300
                 });
-                
+
                 // Hover effects
                 layer.on('mouseover', function(e) {
                     var area = feature.properties.area || 0;
@@ -648,7 +705,7 @@
                     });
                     this.bringToFront();
                 });
-                
+
                 layer.on('mouseout', function(e) {
                     var area = feature.properties.area || 0;
                     var color = getColorByArea(area);
@@ -667,11 +724,11 @@
                 maxClusterRadius: 50,
                 iconCreateFunction: createClusterIcon
             });
-            
+
             geojsonLayer.eachLayer(function(layer) {
                 clusterGroup.addLayer(layer);
             });
-            
+
             clusterGroup.addTo(map);
         } else {
             geojsonLayer.addTo(map);
@@ -697,7 +754,7 @@
             div.innerHTML = `
                 <div class="icon">🏢</div>
                 <h4>No Buildings Found</h4>
-                <p>No building data is available for this area.</p>
+                <p>No building data is available for this corporation.</p>
             `;
             return div;
         };
@@ -722,15 +779,15 @@
     function changeMapLayer() {
         var layerType = document.getElementById('mapLayer').value;
         currentLayer = layerType;
-        
+
         map.eachLayer(function(layer) {
             if (layer instanceof L.TileLayer) {
                 map.removeLayer(layer);
             }
         });
-        
+
         mapLayers[layerType].addTo(map);
-        
+
         if (isClustering && clusterGroup) {
             clusterGroup.addTo(map);
         } else if (geojsonLayer) {
@@ -748,7 +805,7 @@
     // Toggle clustering
     function toggleClustering() {
         isClustering = !isClustering;
-        
+
         if (geojsonLayer) {
             if (isClustering) {
                 map.removeLayer(geojsonLayer);
@@ -772,7 +829,7 @@
                 geojsonLayer.addTo(map);
                 document.getElementById('clusterToggle').innerHTML = '<i class="fas fa-object-group"></i> Cluster';
             }
-            
+
             fitBounds();
         }
     }

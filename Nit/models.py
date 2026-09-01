@@ -9,15 +9,6 @@ from django.contrib.gis.db import models as gis_models
 import json
 import uuid
 
-# Nit/models.py - COMPLETE FIXED VERSION
-from django.contrib.gis.db import models as gis_models
-from django.contrib.auth.models import User
-from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.utils import timezone
-from django.db.models import Sum
-import json
-import uuid
 
 User = get_user_model()
 
@@ -45,15 +36,155 @@ class UserProfile(models.Model):
         return f"{self.user.username} - {self.get_role_display()}"
 
 
-# ============ CBE (Corporation) ============
+# ============ CBE (Corporation Building Executive) ============
 class CBE(models.Model):
-    name = models.CharField(max_length=200)
-    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
-    address = models.TextField(blank=True)
-    contact_person = models.CharField(max_length=100, blank=True)
-    contact_phone = models.CharField(max_length=15, blank=True)
+    code = models.CharField(max_length=50, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.name
+# ============ CORPORATION ============
+class Corporation(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+    ]
+    
+    name = models.CharField(max_length=255, unique=True)
+    code = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    total_area = models.FloatField(default=0)
+    total_buildings = models.IntegerField(default=0)
+    total_surveys = models.IntegerField(default=0)
+    coverage_percentage = models.FloatField(default=0)  # Add this line
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')  # Add this
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    description = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return self.name
+
+# ============ BUILDING ============
+class Building(models.Model):
+    BUILDING_TYPES = [
+        ('RESIDENTIAL', 'Residential'),
+        ('COMMERCIAL', 'Commercial'),
+        ('INDUSTRIAL', 'Industrial'),
+        ('GOVERNMENT', 'Government'),
+        ('MIXED_USE', 'Mixed Use'),
+        ('OTHER', 'Other'),
+    ]
+    
+    gis_id = models.CharField(max_length=100, unique=True, db_index=True)
+    building_name = models.CharField(max_length=255, null=True, blank=True)
+    building_number = models.CharField(max_length=50, null=True, blank=True)
+    address = models.TextField(blank=True, null=True)
+    year_built = models.IntegerField(null=True, blank=True)
+    
+    # GEOMETRY FIELD - This is the key field for GeoDjango
+    geometry = gis_models.GeometryField(srid=4326, null=True, blank=True, geography=True)
+    
+    area = models.FloatField(null=True, blank=True)
+    
+    building_type = models.CharField(max_length=50, choices=BUILDING_TYPES, default='OTHER')
+    floors = models.IntegerField(null=True, blank=True)
+    construction_year = models.IntegerField(null=True, blank=True)
+    
+    owner_name = models.CharField(max_length=255, null=True, blank=True)
+    owner_contact = models.CharField(max_length=20, null=True, blank=True)
+    
+    corporation = models.ForeignKey(
+        'Corporation', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='buildings'
+    )
+    ward = models.CharField(max_length=50, null=True, blank=True)
+    city = models.CharField(max_length=100, default='New Delhi')
+    state = models.CharField(max_length=100, default='Delhi')
+    pincode = models.CharField(max_length=10, null=True, blank=True, default='')
+    
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.gis_id} - {self.building_name or 'Unnamed'}"
+class SearchHistory(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    gis_id = models.CharField(max_length=100)
+    building = models.ForeignKey(Building, on_delete=models.SET_NULL, null=True, blank=True)
+    searched_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-searched_at']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.gis_id} - {self.searched_at}"
+    
+    def get_geojson(self):
+        if self.geometry:
+            return {
+                'type': 'Feature',
+                'geometry': json.loads(self.geometry.geojson),
+                'properties': {
+                    'id': self.id,
+                    'gis_id': self.gis_id,
+                    'building_name': self.building_name,
+                    'building_number': self.building_number,
+                    'area': self.area,
+                    'building_type': self.building_type,
+                    'floors': self.floors,
+                    'owner_name': self.owner_name,
+                    'corporation': self.corporation.name if self.corporation else None,
+                    'ward': self.ward,
+                    'city': self.city,
+                }
+            }
+        return None
+
+
+# ============ SURVEYOR ============
+class Surveyor(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='surveyor_profile')
+    phone = models.CharField(max_length=15, null=True, blank=True)
+    address = models.TextField(null=True, blank=True)
+    assigned_ward = models.CharField(max_length=50, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.assigned_ward or 'Unassigned'}"
+
+
+# ============ TAX COLLECTOR ============
+class TaxCollector(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='taxcollector_profile')
+    employee_id = models.CharField(max_length=50, unique=True)
+    phone = models.CharField(max_length=15)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.employee_id}"
+
+# ============ WARD ============
+class Ward(models.Model):
+    name = models.CharField(max_length=255)
+    ward_number = models.CharField(max_length=50, unique=True)
+    area_ha = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    population = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -64,7 +195,7 @@ class CBE(models.Model):
 
 # ============ DATA ============
 class Data(models.Model):
-    corporation = models.ForeignKey(CBE, on_delete=models.CASCADE, related_name='datasets')
+    corporation = models.ForeignKey(Corporation, on_delete=models.CASCADE, related_name='datasets')
     corporation_name = models.CharField(max_length=200)
     ward = models.CharField(max_length=50)
     zone = models.CharField(max_length=50)
@@ -88,156 +219,6 @@ class Data(models.Model):
     
     def __str__(self):
         return f"{self.corporation_name} - Zone {self.zone} - Ward {self.ward}"
-
-
-# ============ CORPORATION ============
-class Corporation(models.Model):
-    STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-        ('pending', 'Pending'),
-        ('suspended', 'Suspended'),
-    ]
-    
-    name = models.CharField(max_length=255)
-    code = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True, null=True)
-    geometry = gis_models.MultiPolygonField(blank=True, null=True, srid=3857)
-    centroid = gis_models.PointField(blank=True, null=True, srid=3857)
-    total_area = models.FloatField(default=0)
-    total_buildings = models.IntegerField(default=0)
-    total_surveys = models.IntegerField(default=0)
-    coverage_percentage = models.FloatField(default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    geojson_file = models.FileField(upload_to='corporations/geojson/', null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='corporations')
-    
-    class Meta:
-        verbose_name_plural = "Corporations"
-        ordering = ['name']
-    
-    def __str__(self):
-        return self.name
-
-
-# ============ BUILDING ============
-class Building(models.Model):
-    BUILDING_TYPES = [
-        ('residential', 'Residential'),
-        ('commercial', 'Commercial'),
-        ('industrial', 'Industrial'),
-        ('institutional', 'Institutional'),
-        ('mixed_use', 'Mixed Use'),
-    ]
-    
-    gis_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
-    building_number = models.CharField(max_length=50, default='B-0001')
-    building_name = models.CharField(max_length=200, blank=True, default='')
-    
-    address = models.TextField(blank=True, null=True)
-    city = models.CharField(max_length=100, default='New Delhi')
-    state = models.CharField(max_length=100, default='Delhi')
-    pincode = models.CharField(max_length=10, blank=True, default='')
-    
-    # Use GeometryField with SRID 3857
-    geometry = gis_models.GeometryField(null=True, blank=True)
-    
-    building_type = models.CharField(max_length=50, choices=BUILDING_TYPES, default='residential')
-    area = models.FloatField(default=0, help_text='Area in square feet')
-    floors = models.IntegerField(default=1)
-    year_built = models.IntegerField(null=True, blank=True)
-    
-    owner_name = models.CharField(max_length=200, default='Unknown')
-    owner_contact = models.CharField(max_length=20, blank=True, default='')
-    
-    corporation = models.ForeignKey(
-        Corporation,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='buildings'
-    )
-    
-    class Meta:
-        indexes = [
-            models.Index(fields=['gis_id']),
-            models.Index(fields=['building_type']),
-            models.Index(fields=['corporation']),
-        ]
-        verbose_name_plural = "Buildings"
-    
-    def __str__(self):
-        return f"{self.building_number} - {self.owner_name}"
-    
-    def save(self, *args, **kwargs):
-        if not self.gis_id:
-            self.gis_id = f"B-{uuid.uuid4().hex[:8].upper()}"
-        super().save(*args, **kwargs)
-
-
-# ============ SURVEYOR ============
-class Surveyor(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='surveyor_profile')
-    employee_id = models.CharField(max_length=50, unique=True)
-    department = models.CharField(max_length=100, blank=True, null=True)
-    data = models.ForeignKey(Data, on_delete=models.SET_NULL, null=True, related_name='surveyors')
-    mobile = models.CharField(max_length=20, blank=True, null=True)
-    password_reset_token = models.CharField(max_length=255, null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.employee_id}"
-
-
-# ============ ACTIVITY LOG ============
-class ActivityLog(models.Model):
-    ACTION_CHOICES = [
-        ('CREATE', 'Create'),
-        ('UPDATE', 'Update'),
-        ('DELETE', 'Delete'),
-        ('VIEW', 'View'),
-        ('LOGIN', 'Login'),
-        ('LOGOUT', 'Logout'),
-        ('EXPORT', 'Export'),
-        ('IMPORT', 'Import'),
-    ]
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
-    model_name = models.CharField(max_length=100)
-    object_id = models.CharField(max_length=50, blank=True, null=True)
-    details = models.JSONField(default=dict, blank=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True, null=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['-timestamp']
-        verbose_name_plural = 'Activity Logs'
-    
-    def __str__(self):
-        return f"{self.user.username} - {self.action} - {self.model_name}"
-
-
-# ============ WARD ============
-class Ward(models.Model):
-    name = models.CharField(max_length=100)
-    ward_number = models.IntegerField(unique=True)
-    description = models.TextField(blank=True)
-    latitude = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    area_ha = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    population = models.IntegerField(null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"Ward {self.ward_number} - {self.name}"
 
 
 # ============ ASSESSMENT ============
@@ -318,6 +299,50 @@ class Assessment(models.Model):
     
     def __str__(self):
         return f"{self.gis_id} - {self.owner_name}"
+
+
+# ============ ASSESSMENT DATA ============
+class AssessmentData(models.Model):
+    gis_id = models.CharField(max_length=100, unique=True)
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name='assessments', null=True, blank=True)
+    assessed_value = models.FloatField(default=0)
+    tax_amount = models.FloatField(default=0)
+    assessment_year = models.IntegerField(null=True, blank=True)
+    status = models.CharField(max_length=50, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.gis_id} - {self.assessment_year}"
+
+
+# ============ ATTENDANCE ============
+class Attendance(models.Model):
+    surveyor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendances')
+    date = models.DateField(default=timezone.now)
+    check_in_time = models.DateTimeField(null=True, blank=True)
+    check_out_time = models.DateTimeField(null=True, blank=True)
+    check_in_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    check_in_lng = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    check_out_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    check_out_lng = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    inlocation = models.JSONField(null=True, blank=True)
+    outlocation = models.JSONField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=[
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('half_day', 'Half Day'),
+        ('leave', 'Leave'),
+    ], default='present')
+    ward = models.CharField(max_length=50, blank=True, null=True)
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['surveyor', 'date']
+    
+    def __str__(self):
+        return f"{self.surveyor.username} - {self.date}"
 
 
 # ============ BUILDING DATA ============
@@ -408,14 +433,11 @@ class PointData(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    class Meta:
-        unique_together = ['data', 'assessment']
-    
     def __str__(self):
         return f"{self.data.corporation_name} - {self.assessment}"
 
 
-# ============ POLYGON FEATURE ============
+# ============ GIS FEATURES ============
 class PolygonFeature(models.Model):
     data = models.ForeignKey(Data, on_delete=models.CASCADE, related_name='polygons')
     gisid = models.CharField(max_length=50)
@@ -431,7 +453,6 @@ class PolygonFeature(models.Model):
         return f"{self.data.corporation_name} - {self.gisid}"
 
 
-# ============ POINT FEATURE ============
 class PointFeature(models.Model):
     data = models.ForeignKey(Data, on_delete=models.CASCADE, related_name='points')
     gisid = models.CharField(max_length=50)
@@ -447,7 +468,6 @@ class PointFeature(models.Model):
         return f"{self.data.corporation_name} - {self.gisid}"
 
 
-# ============ LINE FEATURE ============
 class LineFeature(models.Model):
     data = models.ForeignKey(Data, on_delete=models.CASCADE, related_name='lines')
     gisid = models.CharField(max_length=50)
@@ -483,31 +503,34 @@ class QCData(models.Model):
         return f"{self.data.corporation_name} - {self.gisid}"
 
 
-# ============ ATTENDANCE ============
-class Attendance(models.Model):
-    surveyor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendances')
-    date = models.DateField(auto_now_add=True)
-    check_in_time = models.DateTimeField(null=True, blank=True)
-    check_out_time = models.DateTimeField(null=True, blank=True)
-    check_in_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    check_in_lng = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    check_out_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    check_out_lng = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    inlocation = models.JSONField(null=True, blank=True)
-    outlocation = models.JSONField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('present', 'Present'),
-        ('absent', 'Absent'),
-        ('half_day', 'Half Day'),
-        ('leave', 'Leave'),
-    ], default='present')
-    Data = models.DateField(null=True, blank=True)
-    ward = models.CharField(max_length=50, blank=True, null=True)
-    remarks = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+# ============ ACTIVITY LOG ============
+class ActivityLog(models.Model):
+    ACTION_CHOICES = [
+        ('CREATE', 'Create'),
+        ('UPDATE', 'Update'),
+        ('DELETE', 'Delete'),
+        ('VIEW', 'View'),
+        ('LOGIN', 'Login'),
+        ('LOGOUT', 'Logout'),
+        ('EXPORT', 'Export'),
+        ('IMPORT', 'Import'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=100)
+    object_id = models.CharField(max_length=50, blank=True, null=True)
+    details = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name_plural = 'Activity Logs'
     
     def __str__(self):
-        return f"{self.surveyor.username} - {self.date}"
+        return f"{self.user.username} - {self.action} - {self.model_name}"
 
 
 # ============ PASSWORD RESET TOKEN ============

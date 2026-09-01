@@ -1,4 +1,5 @@
-# Nit/views_geometry.py - COMPLETE FIXED VERSION (No Duplicates)
+# Nit/views_geometry.py - COMPLETE FIXED VERSION
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -9,7 +10,8 @@ from django.utils import timezone
 from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Polygon, Point
 from django.core.files.storage import default_storage
 from .models import Corporation, Building
-
+import logging
+from django.db.models import Count, Sum, Q
 import json
 import os
 import uuid
@@ -20,6 +22,8 @@ from .models import (
 )
 from .services.shapefile_service import ShapefileService
 from .decorators import admin_required, surveyor_required
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -263,6 +267,291 @@ def api_get_geometry(request, data_id, gisid):
         return JsonResponse({'error': str(e)}, status=404)
 
 
+# ============================================
+# API BUILDINGS
+# ============================================
+
+@csrf_exempt
+@login_required
+def api_buildings(request):
+    """API endpoint for building CRUD operations"""
+    
+    if request.method == 'GET':
+        buildings = Building.objects.filter(geometry__isnull=False).select_related('corporation')
+        features = []
+        
+        for building in buildings:
+            if building.geometry:
+                try:
+                    if hasattr(building.geometry, 'geojson'):
+                        geometry = json.loads(building.geometry.geojson)
+                    else:
+                        continue
+                    
+                    feature = {
+                        "type": "Feature",
+                        "geometry": geometry,
+                        "properties": {
+                            "id": building.id,
+                            "gis_id": building.gis_id,
+                            "building_name": building.building_name,
+                            "building_number": building.building_number,
+                            "area": building.area,
+                            "building_type": building.building_type,
+                            "floors": building.floors,
+                            "owner_name": building.owner_name,
+                            "owner_contact": building.owner_contact,
+                            "corporation": building.corporation.name if building.corporation else None,
+                            "ward": building.ward,
+                            "city": building.city,
+                        }
+                    }
+                    features.append(feature)
+                except:
+                    continue
+        
+        return JsonResponse({
+            "type": "FeatureCollection",
+            "features": features
+        }, safe=False)
+    
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            print("📥 Received data:", data)
+            
+            # Get geometry coordinates
+            coords = data.get('geometry_coords')
+            if not coords:
+                return JsonResponse({'error': 'Geometry coordinates required'}, status=400)
+            
+            if isinstance(coords, list) and len(coords) > 0:
+                if isinstance(coords[0], list) and len(coords[0]) == 2:
+                    points = coords
+                else:
+                    return JsonResponse({'error': 'Invalid coordinate format. Expected [[lng, lat], ...]'}, status=400)
+            else:
+                return JsonResponse({'error': 'Invalid coordinates'}, status=400)
+            
+            # ✅ FIX: Convert Web Mercator to WGS84
+            def convert_web_mercator_to_wgs84(x, y):
+                """Convert Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)"""
+                # Check if coordinates are in Web Mercator (large numbers)
+                if abs(x) > 1000000:
+                    lon = (x / 20037508.34) * 180
+                    lat = (y / 20037508.34) * 180
+                    lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
+                    return [lon, lat]
+                else:
+                    # Already in WGS84
+                    return [x, y]
+            
+            # Convert all points
+            converted_points = []
+            for point in points:
+                if len(point) >= 2:
+                    lng, lat = convert_web_mercator_to_wgs84(point[0], point[1])
+                    converted_points.append([lng, lat])
+                else:
+                    converted_points.append(point)
+            
+            print(f"📐 Original points: {points}")
+            print(f"📐 Converted points: {converted_points}")
+            
+            # ✅ Validate converted coordinates
+            for point in converted_points:
+                lng, lat = point[0], point[1]
+                if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+                    return JsonResponse({
+                        'error': f'Invalid coordinate values after conversion: lng={lng}, lat={lat}'
+                    }, status=400)
+            
+            # ✅ Close polygon if not closed
+            if converted_points[0] != converted_points[-1]:
+                converted_points.append(converted_points[0])
+            
+            # ✅ Create geometry with correct SRID
+            try:
+                geojson_polygon = {
+                    "type": "Polygon",
+                    "coordinates": [converted_points]
+                }
+                print(f"📐 Creating geometry: {geojson_polygon}")
+                
+                # ✅ IMPORTANT: Specify SRID=4326 (WGS84)
+                geom = GEOSGeometry(json.dumps(geojson_polygon), srid=4326)
+                
+                if not geom.valid:
+                    return JsonResponse({'error': f'Invalid geometry: {geom.valid_reason}'}, status=400)
+                    
+            except Exception as e:
+                print(f"❌ Geometry error: {e}")
+                return JsonResponse({'error': f'Invalid geometry: {str(e)}'}, status=400)
+            
+            # Get corporation
+            corporation_id = data.get('corporation')
+            corporation = None
+            if corporation_id:
+                try:
+                    corporation = Corporation.objects.get(id=corporation_id)
+                except Corporation.DoesNotExist:
+                    pass
+            
+            # Generate GIS ID
+            gis_id = data.get('gis_id')
+            if not gis_id:
+                gis_id = f"B-{uuid.uuid4().hex[:8].upper()}"
+            
+            # ✅ Create building with converted geometry
+            building = Building.objects.create(
+                gis_id=gis_id,
+                building_name=data.get('building_name', 'Unnamed Building'),
+                building_number=data.get('building_number', gis_id),
+                geometry=geom,
+                area=data.get('area', 0),
+                building_type=data.get('building_type', 'RESIDENTIAL'),
+                floors=data.get('floors', 0),
+                owner_name=data.get('owner_name', 'Unknown'),
+                owner_contact=data.get('owner_contact', ''),
+                corporation=corporation,
+                ward=data.get('ward', ''),
+                city=data.get('city', 'New Delhi'),
+                state=data.get('state', 'Delhi'),
+                pincode=data.get('pincode', ''),
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+            
+            print(f"✅ Building created: ID={building.id}, GIS_ID={building.gis_id}")
+            print(f"📍 Geometry: {geom}")
+            
+            # Get center coordinates for response
+            geom_coords = None
+            if building.geometry:
+                try:
+                    geom_json = json.loads(building.geometry.geojson)
+                    if geom_json.get('type') == 'Polygon':
+                        coords_array = geom_json.get('coordinates', [[]])[0]
+                        if coords_array and len(coords_array) > 0:
+                            lats = [c[1] for c in coords_array]
+                            lngs = [c[0] for c in coords_array]
+                            center_lat = sum(lats) / len(lats)
+                            center_lng = sum(lngs) / len(lngs)
+                            geom_coords = [center_lng, center_lat]
+                except Exception as e:
+                    print(f"Error getting geometry center: {e}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'id': building.id,
+                'gis_id': building.gis_id,
+                'building_name': building.building_name,
+                'building_number': building.building_number,
+                'geometry': geom_coords,
+                'message': 'Building created successfully'
+            }, status=201)
+            
+        except Exception as e:
+            print(f"❌ Error in POST: {e}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+@csrf_exempt
+@login_required
+def api_building_detail(request, building_id):
+    """API endpoint for single building CRUD operations"""
+    
+    try:
+        building = Building.objects.get(id=building_id)
+    except Building.DoesNotExist:
+        return JsonResponse({'error': 'Building not found'}, status=404)
+    
+    if request.method == 'GET':
+        data = {
+            'id': building.id,
+            'gis_id': building.gis_id,
+            'building_name': building.building_name,
+            'building_number': building.building_number,
+            'area': building.area,
+            'building_type': building.building_type,
+            'floors': building.floors,
+            'owner_name': building.owner_name,
+            'owner_contact': building.owner_contact,
+            'corporation': building.corporation.id if building.corporation else None,
+            'ward': building.ward,
+            'city': building.city,
+        }
+        
+        if building.geometry:
+            if hasattr(building.geometry, 'geojson'):
+                data['geometry'] = json.loads(building.geometry.geojson)
+        
+        return JsonResponse(data)
+    
+    elif request.method == 'PUT':
+        try:
+            data = json.loads(request.body)
+            
+            building.gis_id = data.get('gis_id', building.gis_id)
+            building.building_name = data.get('building_name', building.building_name)
+            building.building_number = data.get('building_number', building.building_number)
+            building.building_type = data.get('building_type', building.building_type)
+            building.floors = data.get('floors', building.floors)
+            building.area = data.get('area', building.area)
+            building.owner_name = data.get('owner_name', building.owner_name)
+            building.owner_contact = data.get('owner_contact', building.owner_contact)
+            building.ward = data.get('ward', building.ward)
+            building.city = data.get('city', building.city)
+            
+            corporation_id = data.get('corporation')
+            if corporation_id:
+                try:
+                    building.corporation = Corporation.objects.get(id=corporation_id)
+                except Corporation.DoesNotExist:
+                    pass
+            else:
+                building.corporation = None
+            
+            coords = data.get('geometry_coords')
+            if coords:
+                points = [(c[0], c[1]) for c in coords]
+                if points[0] != points[-1]:
+                    points.append(points[0])
+                
+                geojson_polygon = {
+                    "type": "Polygon",
+                    "coordinates": [points]
+                }
+                building.geometry = GEOSGeometry(json.dumps(geojson_polygon))
+            
+            building.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'id': building.id,
+                'message': 'Building updated successfully'
+            }, status=200)
+            
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+    
+    elif request.method == 'DELETE':
+        try:
+            building.delete()
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Building deleted successfully'
+            }, status=200)
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'error': str(e)
+            }, status=400)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
 @login_required
 @admin_required
 def api_get_all_features(request, data_id):
@@ -300,6 +589,82 @@ def api_get_all_features(request, data_id):
             } for l in lines
         ]
     }, status=200)
+
+
+@csrf_exempt
+def api_building_search(request):
+    """
+    Simple API endpoint to search a single building by GIS ID
+    Returns: List with one building object or empty list
+    URL: /api/building-search/?gis_id=B-MS8ULZ5P
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    gis_id = request.GET.get('gis_id', '').strip()
+    
+    if not gis_id:
+        return JsonResponse([], safe=False)
+    
+    try:
+        building = Building.objects.select_related('corporation').filter(
+            gis_id__iexact=gis_id
+        ).first()
+        
+        if building:
+            data = {
+                'id': building.id,
+                'gis_id': building.gis_id,
+                'building_name': building.building_name or 'Unnamed',
+                'building_number': building.building_number,
+                'address': building.address,
+                'building_type': building.get_building_type_display() if building.building_type else 'Other',
+                'floors': building.floors or 0,
+                'area': float(building.area) if building.area else 0,
+                'ward': building.ward or 'N/A',
+                'city': building.city or 'New Delhi',
+                'state': building.state or 'Delhi',
+                'pincode': building.pincode or 'N/A',
+                'owner_name': building.owner_name or 'Unknown',
+                'owner_contact': building.owner_contact or 'N/A',
+                'corporation': building.corporation.name if building.corporation else None,
+                'is_active': building.is_active,
+                'created_at': building.created_at.strftime('%d/%m/%Y %H:%M') if building.created_at else None,
+                'updated_at': building.updated_at.strftime('%d/%m/%Y %H:%M') if building.updated_at else None,
+            }
+            
+            if building.geometry:
+                try:
+                    if hasattr(building.geometry, 'geojson'):
+                        geom_json = json.loads(building.geometry.geojson)
+                        if geom_json.get('type') == 'Point':
+                            coords = geom_json.get('coordinates', [])
+                            if coords:
+                                data['geometry'] = {
+                                    'type': 'Point',
+                                    'coordinates': coords
+                                }
+                        elif geom_json.get('type') == 'Polygon':
+                            coords = geom_json.get('coordinates', [[]])[0]
+                            if coords and len(coords) > 0:
+                                lats = [c[1] for c in coords]
+                                lngs = [c[0] for c in coords]
+                                center_lat = sum(lats) / len(lats)
+                                center_lng = sum(lngs) / len(lngs)
+                                data['geometry'] = {
+                                    'type': 'Point',
+                                    'coordinates': [center_lng, center_lat]
+                                }
+                except:
+                    pass
+            
+            return JsonResponse([data], safe=False)
+        else:
+            return JsonResponse([], safe=False)
+            
+    except Exception as e:
+        print(f"Search error: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required
@@ -369,38 +734,62 @@ def api_edit_history(request, data_id):
 
 @login_required
 def corporation_dashboard(request):
-    """Corporation dashboard with statistics"""
-    corporations = Corporation.objects.all()
-    total_corporations = corporations.count()
-    total_buildings = Building.objects.count()
-    
-    corporation_data = []
-    for corp in corporations:
-        building_count = Building.objects.filter(corporation=corp).count()
-        corporation_data.append({
-            'id': corp.id,
-            'name': corp.name,
-            'code': corp.code,
-            'description': corp.description,
-            'total_buildings': building_count,
+    """Corporation dashboard view"""
+    try:
+        corporations = Corporation.objects.all().annotate(
+            building_count=Count('buildings'),
+            total_building_area=Sum('buildings__area')
+        )
+        
+        total_corporations = corporations.count()
+        total_buildings = Building.objects.count()
+        total_area = Building.objects.aggregate(Sum('area'))['area__sum'] or 0
+        active_corporations = corporations.filter(status='active').count()
+        pending_corporations = corporations.filter(status='pending').count()
+        
+        corporation_data = []
+        for corp in corporations:
+            buildings = Building.objects.filter(corporation=corp)
+            corporation_data.append({
+                'id': corp.id,
+                'name': corp.name,
+                'code': corp.code or '',
+                'total_area': corp.total_area or 0,
+                'building_count': buildings.count(),
+                'buildings': buildings[:5],
+                'created_at': corp.created_at,
+                'status': getattr(corp, 'status', 'active'),
+                'total_surveys': getattr(corp, 'total_surveys', 0),
+                'coverage_percentage': getattr(corp, 'coverage_percentage', 0),
+            })
+        
+        context = {
+            'corporations': corporation_data,
+            'total_corporations': total_corporations,
+            'active_corporations': active_corporations,
+            'pending_corporations': pending_corporations,
+            'total_buildings': total_buildings,
+            'total_area': total_area,
             'total_surveys': 0,
-            'coverage_percentage': 0,
-            'status': corp.status,
-            'created_at': corp.created_at,
-        })
-    
-    context = {
-        'total_corporations': total_corporations,
-        'active_corporations': corporations.filter(status='active').count(),
-        'pending_corporations': corporations.filter(status='pending').count(),
-        'inactive_corporations': corporations.filter(status='inactive').count(),
-        'total_buildings': total_buildings,
-        'total_surveys': 0,
-        'corporations': corporation_data,
-        'corporation': corporations.first(),
-    }
-    
-    return render(request, 'corporation/dashboard.html', context)
+            'page_title': 'Corporation Dashboard',
+        }
+        
+        return render(request, 'corporation/dashboard.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in corporation_dashboard: {str(e)}")
+        context = {
+            'corporations': [],
+            'total_corporations': 0,
+            'active_corporations': 0,
+            'pending_corporations': 0,
+            'total_buildings': 0,
+            'total_area': 0,
+            'total_surveys': 0,
+            'page_title': 'Corporation Dashboard',
+            'error': str(e),
+        }
+        return render(request, 'corporation/dashboard.html', context)
 
 
 @login_required
@@ -413,27 +802,32 @@ def corporation_list(request):
             'id': corp.id,
             'name': corp.name,
             'code': corp.code,
-            'status': corp.status,
-            'total_buildings': corp.total_buildings,
-            'total_surveys': corp.total_surveys,
-            'coverage': corp.coverage_percentage,
-            'created_at': corp.created_at.strftime('%Y-%m-%d'),
+            'status': getattr(corp, 'status', 'active'),
+            'total_buildings': corp.buildings.count(),
+            'total_surveys': getattr(corp, 'total_surveys', 0),
+            'coverage': getattr(corp, 'coverage_percentage', 0),
+            'created_at': corp.created_at.strftime('%Y-%m-%d') if corp.created_at else '',
         })
     return JsonResponse(data, safe=False)
 
 
 @login_required
 def corporation_map(request, corporation_id=None):
-    """Corporation map view with buildings - DEBUG VERSION"""
+    """Corporation map view with buildings"""
     from .models import Corporation, Building
     import json
     import math
     import logging
     
-    # Set up logging
     logger = logging.getLogger(__name__)
     
     corporations = Corporation.objects.all()
+    total_buildings = Building.objects.count()
+    
+    # Get map position from URL parameters
+    map_lat = request.GET.get('lat')
+    map_lng = request.GET.get('lng')
+    map_zoom = request.GET.get('zoom', 12)
     
     if corporation_id:
         selected_corp = get_object_or_404(Corporation, id=corporation_id)
@@ -442,10 +836,7 @@ def corporation_map(request, corporation_id=None):
         selected_corp = None
         buildings = Building.objects.all()
     
-    # DEBUG: Log building count
-    logger.info(f"Found {buildings.count()} buildings for corporation {selected_corp.name if selected_corp else 'All'}")
-    
-    # Function to convert Web Mercator to WGS84
+    # Build GeoJSON with converted coordinates
     def web_mercator_to_wgs84(x, y):
         lon = (x / 20037508.34) * 180
         lat = (y / 20037508.34) * 180
@@ -456,38 +847,32 @@ def corporation_map(request, corporation_id=None):
         if isinstance(coords[0], list):
             return [convert_coords(c) for c in coords]
         else:
-            return web_mercator_to_wgs84(coords[0], coords[1])
+            if len(coords) >= 2:
+                if abs(coords[0]) > 1000000 or abs(coords[1]) > 1000000:
+                    return web_mercator_to_wgs84(coords[0], coords[1])
+                return coords
+            return coords
     
-    # Build GeoJSON with converted coordinates
     features = []
     for building in buildings:
         if building.geometry:
             try:
                 geom_json = json.loads(building.geometry.geojson)
                 
-                # DEBUG: Log first building
-                if len(features) == 0:
-                    logger.info(f"First building geometry: {geom_json}")
-                    logger.info(f"First building SRID: {building.geometry.srid}")
-                
-                # Check if coordinates are in Web Mercator (large numbers)
+                # Check if coordinates are in Web Mercator
                 is_web_mercator = False
                 try:
                     test_coord = geom_json['coordinates'][0][0]
-                    if len(test_coord) >= 2 and test_coord[0] > 1000000:
+                    if len(test_coord) >= 2 and abs(test_coord[0]) > 1000000:
                         is_web_mercator = True
                 except:
                     pass
                 
-                # DEBUG: Log if conversion is needed
                 if is_web_mercator:
-                    logger.info(f"Converting building {building.id} from Web Mercator")
                     if geom_json['type'] == 'Polygon':
                         geom_json['coordinates'] = convert_coords(geom_json['coordinates'])
                     elif geom_json['type'] == 'MultiPolygon':
                         geom_json['coordinates'] = [convert_coords(poly) for poly in geom_json['coordinates']]
-                else:
-                    logger.info(f"Building {building.id} is already in WGS84")
                 
                 features.append({
                     'type': 'Feature',
@@ -507,46 +892,169 @@ def corporation_map(request, corporation_id=None):
                         'pincode': building.pincode,
                         'owner_contact': building.owner_contact,
                         'year_built': building.year_built,
+                        'corporation': building.corporation.name if building.corporation else 'Unknown',
+                        'corporation_id': building.corporation.id if building.corporation else None,
                     }
                 })
             except Exception as e:
                 logger.error(f"Error processing building {building.id}: {e}")
                 continue
     
-    # DEBUG: Log feature count
-    logger.info(f"Created {len(features)} features for map")
-    
     buildings_geojson = {
         'type': 'FeatureCollection',
         'features': features
     }
     
-    # DEBUG: Log first feature
-    if features:
-        logger.info(f"First feature: {features[0]}")
+    # Get corporation stats
+    corporation_stats = []
+    for corp in corporations:
+        corp_buildings = corp.buildings.all()
+        corporation_stats.append({
+            'id': corp.id,
+            'name': corp.name,
+            'count': corp_buildings.count(),
+        })
     
     context = {
         'selected_corp': selected_corp,
         'building_count': buildings.count(),
+        'total_buildings': total_buildings,
+        'corporation_stats': corporation_stats,
+        'corporation_id': corporation_id,
         'buildings_geojson': json.dumps(buildings_geojson),
         'geojson_data': '{"type":"FeatureCollection","features":[]}',
         'bounds': None,
+        'map_lat': float(map_lat) if map_lat and map_lat != 'None' else 28.6139,
+        'map_lng': float(map_lng) if map_lng and map_lng != 'None' else 77.2090,
+        'map_zoom': float(map_zoom) if map_zoom else 12,
     }
     
     return render(request, 'corporation/map.html', context)
 
 # ============================================
-# UPLOAD FUNCTION - THE MAIN FIX
+# CORPORATION GEOJSON FUNCTIONS
+# ============================================
+@login_required
+def corporation_geojson(request, corporation_id):
+    """Get GeoJSON data for a corporation - Convert to 4326 for viewing"""
+    import math
+    
+    corporation = get_object_or_404(Corporation, id=corporation_id)
+    buildings = Building.objects.filter(corporation=corporation, geometry__isnull=False)
+    
+    def web_mercator_to_wgs84(x, y):
+        lon = (x / 20037508.34) * 180
+        lat = (y / 20037508.34) * 180
+        lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
+        return [lon, lat]
+    
+    def convert_coords_to_4326(coords):
+        if not coords:
+            return coords
+        if isinstance(coords[0], list):
+            return [convert_coords_to_4326(c) for c in coords]
+        else:
+            if len(coords) >= 2:
+                if abs(coords[0]) > 1000000 or abs(coords[1]) > 1000000:
+                    return web_mercator_to_wgs84(coords[0], coords[1])
+                return coords
+            return coords
+    
+    features = []
+    for building in buildings:
+        if building.geometry:
+            try:
+                geom_json = json.loads(building.geometry.geojson)
+                
+                if geom_json['type'] == 'Polygon':
+                    geom_json['coordinates'] = convert_coords_to_4326(geom_json['coordinates'])
+                elif geom_json['type'] == 'MultiPolygon':
+                    geom_json['coordinates'] = [convert_coords_to_4326(poly) for poly in geom_json['coordinates']]
+                
+                features.append({
+                    'type': 'Feature',
+                    'geometry': geom_json,
+                    'properties': {
+                        'id': building.id,
+                        'gis_id': building.gis_id,
+                        'building_number': building.building_number,
+                        'building_name': building.building_name,
+                        'area': float(building.area) if building.area else 0,
+                        'building_type': building.building_type,
+                        'floors': building.floors,
+                        'owner_name': building.owner_name,
+                        'address': building.address,
+                        'city': building.city,
+                        'state': building.state,
+                        'pincode': building.pincode,
+                        'corporation': corporation.name,
+                    }
+                })
+            except Exception as e:
+                print(f"Error processing building {building.id}: {e}")
+                continue
+    
+    geojson = {
+        'type': 'FeatureCollection',
+        'name': corporation.name,
+        'total_features': len(features),
+        'features': features
+    }
+    
+    return JsonResponse(geojson, safe=False)
+@login_required
+def download_corporation_geojson(request, corporation_id):
+    """Download corporation buildings as GeoJSON file"""
+    corporation = get_object_or_404(Corporation, id=corporation_id)
+    buildings = Building.objects.filter(corporation=corporation, geometry__isnull=False)
+    
+    features = []
+    for building in buildings:
+        if building.geometry:
+            try:
+                geom_json = json.loads(building.geometry.geojson)
+                features.append({
+                    'type': 'Feature',
+                    'geometry': geom_json,
+                    'properties': {
+                        'id': building.id,
+                        'gis_id': building.gis_id,
+                        'building_number': building.building_number,
+                        'building_name': building.building_name,
+                        'area': float(building.area) if building.area else 0,
+                        'building_type': building.building_type,
+                        'floors': building.floors,
+                        'owner_name': building.owner_name,
+                        'address': building.address,
+                        'city': building.city,
+                        'state': building.state,
+                        'pincode': building.pincode,
+                        'corporation': corporation.name,
+                    }
+                })
+            except Exception as e:
+                print(f"Error processing building {building.id}: {e}")
+                continue
+    
+    geojson = {
+        'type': 'FeatureCollection',
+        'name': f'{corporation.code}_{corporation.name}',
+        'features': features
+    }
+    
+    response = JsonResponse(geojson, safe=False)
+    response['Content-Disposition'] = f'attachment; filename="{corporation.code}_{corporation.name}_buildings.geojson"'
+    return response
+
+
+# ============================================
+# UPLOAD CORPORATION GEOJSON - FIXED
 # ============================================
 
 @login_required
 @csrf_exempt
 def upload_corporation_geojson(request):
     """Upload GeoJSON - Fix coordinate structure and close polygons"""
-    import json
-    import uuid
-    import math
-    from django.contrib.gis.geos import GEOSGeometry
     
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -587,55 +1095,6 @@ def upload_corporation_geojson(request):
             status='active'
         )
         
-        # Function to convert Web Mercator to WGS84
-        def web_mercator_to_wgs84(x, y):
-            lon = (x / 20037508.34) * 180
-            lat = (y / 20037508.34) * 180
-            lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
-            return [lon, lat]
-        
-        def convert_coords(coords):
-            if isinstance(coords[0], list):
-                return [convert_coords(c) for c in coords]
-            else:
-                return web_mercator_to_wgs84(coords[0], coords[1])
-        
-        def flatten_and_close_polygon(coords):
-            """Extract the actual coordinate list and close it"""
-            # Handle different nesting levels
-            # The coordinates might be like:
-            # - [[[x1,y1], [x2,y2], ...]]  (MultiPolygon/Polygon with extra nesting)
-            # - [[x1,y1], [x2,y2], ...]     (Polygon)
-            # - [x1,y1]                     (Single coordinate)
-            
-            # Get the actual points
-            points = coords
-            while points and isinstance(points[0], list) and len(points[0]) == 2 and not isinstance(points[0][0], list):
-                # Already in correct format [[x1,y1], [x2,y2]]
-                break
-            while points and isinstance(points[0], list) and isinstance(points[0][0], list):
-                # Too nested, go one level deeper
-                points = points[0]
-            
-            # If it's still nested, keep going
-            while points and isinstance(points[0], list) and isinstance(points[0][0], list):
-                points = points[0]
-            
-            # Now points should be [[x1,y1], [x2,y2], ...]
-            # Make sure each point is a list of 2 numbers
-            clean_points = []
-            for p in points:
-                if isinstance(p, list) and len(p) >= 2:
-                    clean_points.append([float(p[0]), float(p[1])])
-                else:
-                    clean_points.append([float(p), float(p[0])] if len(str(p).split()) > 1 else [0, 0])
-            
-            # Close the polygon if needed
-            if clean_points and clean_points[0] != clean_points[-1]:
-                clean_points.append(clean_points[0][:])
-            
-            return clean_points
-        
         created_count = 0
         error_count = 0
         error_messages = []
@@ -657,35 +1116,15 @@ def upload_corporation_geojson(request):
                 else:
                     coords = geometry['coordinates']
                 
-                # Flatten and close the polygon
-                clean_points = flatten_and_close_polygon(coords)
+                # Flatten coordinates
+                while coords and isinstance(coords[0], list) and isinstance(coords[0][0], list):
+                    coords = coords[0]
                 
-                if len(clean_points) < 3:
-                    error_count += 1
-                    error_messages.append(f"Feature {i}: Not enough points")
-                    continue
+                # Close polygon
+                if coords and coords[0] != coords[-1]:
+                    coords.append(coords[0])
                 
-                # Check if coordinates are in Web Mercator and convert
-                is_web_mercator = False
-                try:
-                    if len(clean_points) > 0 and len(clean_points[0]) >= 2:
-                        if clean_points[0][0] > 1000000:
-                            is_web_mercator = True
-                except:
-                    pass
-                
-                if is_web_mercator:
-                    converted_coords = convert_coords(clean_points)
-                else:
-                    converted_coords = clean_points
-                
-                # Create proper GeoJSON structure
-                geom_dict = {
-                    'type': 'Polygon',
-                    'coordinates': [converted_coords]
-                }
-                
-                # Generate unique GIS ID
+                # Generate GIS ID
                 gis_id = properties.get('gis_id') or properties.get('GIS_ID') or properties.get('id')
                 
                 if not gis_id or str(gis_id).strip() == '':
@@ -701,6 +1140,7 @@ def upload_corporation_geojson(request):
                 existing_ids.add(gis_id)
                 
                 building_name = properties.get('building_name') or properties.get('name') or f"Building {gis_id}"
+                building_number = properties.get('building_number') or properties.get('number') or gis_id
                 
                 area = properties.get('area') or properties.get('sqft') or 0
                 try:
@@ -720,13 +1160,17 @@ def upload_corporation_geojson(request):
                 address = properties.get('address') or properties.get('Address') or ''
                 
                 # Create geometry
-                geom_json_str = json.dumps(geom_dict)
-                geom = GEOSGeometry(geom_json_str, srid=4326)
+                geom_dict = {
+                    'type': 'Polygon',
+                    'coordinates': [coords]
+                }
+                geom = GEOSGeometry(json.dumps(geom_dict), srid=4326)
                 
+                # ✅ FIXED: Remove duplicate building_number
                 Building.objects.create(
                     corporation=corporation,
                     gis_id=gis_id,
-                    building_number=properties.get('building_number') or properties.get('number') or gis_id,
+                    building_number=str(building_number),  # Only once!
                     building_name=str(building_name),
                     address=str(address),
                     city=properties.get('city', 'New Delhi'),
@@ -745,6 +1189,7 @@ def upload_corporation_geojson(request):
             except Exception as e:
                 error_count += 1
                 error_messages.append(f"Feature {i}: {str(e)}")
+                print(f"Error creating building: {e}")
                 continue
         
         if created_count == 0:
@@ -766,30 +1211,38 @@ def upload_corporation_geojson(request):
         }, status=200)
         
     except Exception as e:
+        print(f"Upload error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-    
 
 # ============================================
-# BUILDINGS GEOJSON API - FOR MAP DISPLAY
+# BUILDINGS GEOJSON API
 # ============================================
+
+# views_geometry.py
 
 @login_required
 def buildings_geojson(request, corporation_id=None):
-    """API endpoint - Return geometry converted to WGS84 for map"""
+    """API endpoint - Return geometry converted to Web Mercator (3857) for OpenLayers"""
     import json
     import math
     
-    def web_mercator_to_wgs84(x, y):
-        lon = (x / 20037508.34) * 180
-        lat = (y / 20037508.34) * 180
-        lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
-        return [lon, lat]
+    def wgs84_to_web_mercator(lng, lat):
+        """Convert WGS84 (EPSG:4326) to Web Mercator (EPSG:3857)"""
+        x = lng * 20037508.34 / 180
+        y = math.log(math.tan((90 + lat) * math.pi / 360)) / (math.pi / 180)
+        y = y * 20037508.34 / 180
+        return [x, y]
     
-    def convert_coords(coords):
+    def convert_coords_to_3857(coords):
+        """Recursively convert coordinates from 4326 to 3857"""
         if isinstance(coords[0], list):
-            return [convert_coords(c) for c in coords]
+            return [convert_coords_to_3857(c) for c in coords]
         else:
-            return web_mercator_to_wgs84(coords[0], coords[1])
+            if len(coords) >= 2:
+                return wgs84_to_web_mercator(coords[0], coords[1])
+            return coords
     
     if corporation_id:
         buildings = Building.objects.filter(corporation_id=corporation_id, geometry__isnull=False)
@@ -800,23 +1253,14 @@ def buildings_geojson(request, corporation_id=None):
     for building in buildings:
         if building.geometry:
             try:
+                # ✅ Data is stored in 4326
                 geom_json = json.loads(building.geometry.geojson)
                 
-                # Check if coordinates are in Web Mercator
-                is_web_mercator = False
-                try:
-                    test_coord = geom_json['coordinates'][0][0]
-                    if len(test_coord) >= 2 and test_coord[0] > 1000000:
-                        is_web_mercator = True
-                except:
-                    pass
-                
-                # Convert if in Web Mercator
-                if is_web_mercator:
-                    if geom_json['type'] == 'Polygon':
-                        geom_json['coordinates'] = convert_coords(geom_json['coordinates'])
-                    elif geom_json['type'] == 'MultiPolygon':
-                        geom_json['coordinates'] = [convert_coords(poly) for poly in geom_json['coordinates']]
+                # ✅ Convert to 3857 for OpenLayers display
+                if geom_json['type'] == 'Polygon':
+                    geom_json['coordinates'] = convert_coords_to_3857(geom_json['coordinates'])
+                elif geom_json['type'] == 'MultiPolygon':
+                    geom_json['coordinates'] = [convert_coords_to_3857(poly) for poly in geom_json['coordinates']]
                 
                 feature = {
                     'type': 'Feature',
@@ -836,6 +1280,8 @@ def buildings_geojson(request, corporation_id=None):
                         'owner_contact': building.owner_contact,
                         'state': building.state,
                         'pincode': building.pincode,
+                        'corporation': building.corporation.name if building.corporation else None,
+                        'corporation_id': building.corporation.id if building.corporation else None,
                     }
                 }
                 features.append(feature)
@@ -850,24 +1296,64 @@ def buildings_geojson(request, corporation_id=None):
     
     return JsonResponse(geojson)
 
-# ============================================
-# API - GET CORPORATION BUILDINGS GEOJSON
-# ============================================
-
 @login_required
 def get_corporation_buildings_geojson(request, corporation_id):
-    """API to get buildings GeoJSON for a corporation"""
-    import json
-    from .models import Corporation, Building
+    """API to get buildings GeoJSON for a corporation - Convert to 4326 for Leaflet"""
+    import math
     
     corporation = get_object_or_404(Corporation, id=corporation_id)
     buildings = Building.objects.filter(corporation=corporation, geometry__isnull=False)
+    
+    def web_mercator_to_wgs84(x, y):
+        """Convert Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)"""
+        lon = (x / 20037508.34) * 180
+        lat = (y / 20037508.34) * 180
+        lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
+        return [lon, lat]
+    
+    def convert_coords_to_4326(coords):
+        """Recursively convert coordinates from 3857 to 4326"""
+        if not coords:
+            return coords
+        
+        if isinstance(coords[0], list):
+            return [convert_coords_to_4326(c) for c in coords]
+        else:
+            if len(coords) >= 2:
+                # Check if coordinates are in Web Mercator (large numbers)
+                if abs(coords[0]) > 1000000 or abs(coords[1]) > 1000000:
+                    return web_mercator_to_wgs84(coords[0], coords[1])
+                else:
+                    # Already in WGS84
+                    return [coords[0], coords[1]]
+            return coords
     
     features = []
     for building in buildings:
         if building.geometry:
             try:
                 geom_json = json.loads(building.geometry.geojson)
+                
+                # ✅ Convert from 3857 to 4326 for Leaflet
+                if geom_json['type'] == 'Polygon':
+                    geom_json['coordinates'] = convert_coords_to_4326(geom_json['coordinates'])
+                elif geom_json['type'] == 'MultiPolygon':
+                    geom_json['coordinates'] = [convert_coords_to_4326(poly) for poly in geom_json['coordinates']]
+                
+                # Get center point for the building
+                center = None
+                try:
+                    if building.geometry:
+                        center_point = building.geometry.centroid
+                        # Convert center if needed
+                        if abs(center_point.x) > 1000000 or abs(center_point.y) > 1000000:
+                            lng, lat = web_mercator_to_wgs84(center_point.x, center_point.y)
+                        else:
+                            lng, lat = center_point.x, center_point.y
+                        center = {'lng': lng, 'lat': lat}
+                except:
+                    pass
+                
                 features.append({
                     'type': 'Feature',
                     'geometry': geom_json,
@@ -884,16 +1370,19 @@ def get_corporation_buildings_geojson(request, corporation_id):
                         'city': building.city,
                         'state': building.state,
                         'pincode': building.pincode,
+                        'corporation': corporation.name,
+                        'center_lat': center['lat'] if center else None,
+                        'center_lng': center['lng'] if center else None,
                     }
                 })
             except Exception as e:
+                print(f"Error processing building {building.id}: {e}")
                 continue
     
     return JsonResponse({
         'type': 'FeatureCollection',
         'features': features
     })
-
 
 # ============================================
 # DEBUG FUNCTIONS
@@ -902,9 +1391,6 @@ def get_corporation_buildings_geojson(request, corporation_id):
 @login_required
 def debug_buildings(request, corporation_id=None):
     """Debug view to check building data"""
-    import json
-    from django.http import JsonResponse
-    
     if corporation_id:
         buildings = Building.objects.filter(corporation_id=corporation_id)
     else:
@@ -939,9 +1425,6 @@ def debug_buildings(request, corporation_id=None):
 @login_required
 def debug_buildings_json(request, corporation_id=None):
     """Debug view to see building coordinates"""
-    from django.http import JsonResponse
-    import json
-    
     if corporation_id:
         buildings = Building.objects.filter(corporation_id=corporation_id)[:5]
     else:
@@ -1002,12 +1485,9 @@ def corporation_details(request, corporation_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 def test_buildings(request):
     """Simple test view to check buildings"""
-    from django.http import JsonResponse
-    from .models import Building
-    import json
-    
     buildings = Building.objects.all()[:5]
     data = []
     for b in buildings:
@@ -1020,7 +1500,6 @@ def test_buildings(request):
             })
     
     return JsonResponse({'buildings': data, 'total': Building.objects.count()})
-    
 
 
 @login_required

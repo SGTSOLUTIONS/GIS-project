@@ -9,6 +9,8 @@ from io import BytesIO
 import zipfile
 import os
 from django.conf import settings
+from django.db.models import Sum, Count, Q
+from .models import Building
 
 
 def calculate_polygon_area(coordinates):

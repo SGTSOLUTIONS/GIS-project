@@ -1,862 +1,3108 @@
-    {% extends "base.html" %}
-    {% load static %}
+{% extends "base.html" %}
+{% load static %}
 
-    {% block title %}Master Map - All Buildings{% endblock %}
+{% block title %}Smart Map - Building Management{% endblock %}
 
-    {% block content %}
-    <!-- Corporation Stats Banner -->
-    <div class="corp-banner" style="background: linear-gradient(135deg, #0f3b5e, #1a5276); color: white; padding: 12px 24px; border-radius: 12px; margin: 0 32px 16px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div>
-            <strong><i class="fas fa-building"></i> All Corporations</strong>
-            <span style="margin-left: 16px; opacity: 0.8;">{{ corporation_count }} Corporations</span>
-            <span style="margin-left: 12px; opacity: 0.8;">{{ total_features }} Total Buildings</span>
-            <span style="margin-left: 12px; opacity: 0.8;">Total Area: {{ total_area|floatformat:0 }} sqft</span>
+{% block extra_head %}
+<!-- OpenLayers CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    /* ============================================
+    COORDINATE DISPLAY OVERLAY
+    ============================================ */
+    #coordinate-display {
+        position: absolute;
+        bottom: 30px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 10px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        z-index: 1000;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        letter-spacing: 0.5px;
+        flex-wrap: wrap;
+    }
+    #coordinate-display .coord-label {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    #coordinate-display .coord-value {
+        color: #2eccb0;
+        font-weight: 600;
+    }
+    #coordinate-display .coord-divider {
+        color: rgba(255, 255, 255, 0.2);
+    }
+    #coordinate-display .coord-location {
+        color: #f1c40f;
+        font-weight: 600;
+        font-size: 12px;
+    }
+    .coord-badge {
+        display: inline-block;
+        background: rgba(46, 204, 176, 0.2);
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        color: #2eccb0;
+        border: 1px solid rgba(46, 204, 176, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ============================================
+    PREMIUM TOP BANNER
+    ============================================ -->
+<div class="premium-banner">
+    <div class="banner-bg-pattern"></div>
+    <div class="banner-content">
+        <div class="banner-left">
+            <div class="banner-icon-wrapper">
+                <div class="banner-icon-pulse"></div>
+                <i class="fas fa-map-marked-alt"></i>
+            </div>
+            <div class="banner-text">
+                <h1>Building Map</h1>
+                <span class="banner-subtitle">Interactive GIS Dashboard <span class="live-dot"></span></span>
+            </div>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            {% for stat in corporation_stats %}
-            <span style="background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 6px; font-size: 0.85rem;">
-                {{ stat.name }}: {{ stat.count }}
-            </span>
-            {% endfor %}
+        <div class="banner-right">
+            <div class="premium-stat">
+                <div class="stat-icon"><i class="fas fa-building"></i></div>
+                <div>
+                    <span class="stat-label">Total building</span>
+                    <span class="stat-value">{{ total_buildings|default:0 }}</span>
+                </div>
+            </div>
+            <div class="premium-stat">
+                <div class="stat-icon" style="background:rgba(46,204,113,0.2);"><i class="fas fa-industry" style="color:#2ecc71;"></i></div>
+                <div>
+                    <span class="stat-label">Corporations</span>
+                    <span class="stat-value">{{ corporation_stats|length }}</span>
+                </div>
+            </div>
+            <div class="premium-stat">
+                <div class="stat-icon" style="background:rgba(52,152,219,0.2);"><i class="fas fa-check-circle" style="color:#3498db;"></i></div>
+                <div>
+                    <span class="stat-label">Active</span>
+                    <span class="stat-value" id="activeBuildings">0</span>
+                </div>
+            </div>
         </div>
     </div>
+</div>
 
-    <div class="map-page">
-        <div class="page-header premium-header">
-            <h2><i class="fas fa-map-marked-alt"></i> Master Building Map</h2>
-            <p>Showing all buildings from all corporations - {{ total_features }} buildings total</p>
+<!-- ============================================
+    CORPORATION STATS
+    ============================================ -->
+<div class="corp-stats-container">
+    <div class="corp-stats-scroll">
+        <div class="corp-stat-all">
+            <i class="fas fa-th-large"></i>
+            <span>All</span>
+            <span class="chip-count">{{ corporation_stats|length }}</span>
         </div>
-
-        <!-- Stats -->
-        <div class="stats-row premium-stats-row">
-            <div class="stat-card-premium">
-                <div class="stat-card-icon blue">
-                    <i class="fas fa-building"></i>
-                </div>
-                <div class="stat-card-info">
-                    <span class="stat-card-number">{{ total_features }}</span>
-                    <span class="stat-card-label">Total Buildings</span>
-                </div>
-            </div>
-            <div class="stat-card-premium">
-                <div class="stat-card-icon green">
-                    <i class="fas fa-home"></i>
-                </div>
-                <div class="stat-card-info">
-                    <span class="stat-card-number">{{ residential_count|default:0 }}</span>
-                    <span class="stat-card-label">Residential</span>
-                </div>
-            </div>
-            <div class="stat-card-premium">
-                <div class="stat-card-icon orange">
-                    <i class="fas fa-store"></i>
-                </div>
-                <div class="stat-card-info">
-                    <span class="stat-card-number">{{ commercial_count|default:0 }}</span>
-                    <span class="stat-card-label">Commercial</span>
-                </div>
-            </div>
-            <div class="stat-card-premium">
-                <div class="stat-card-icon purple">
-                    <i class="fas fa-industry"></i>
-                </div>
-                <div class="stat-card-info">
-                    <span class="stat-card-number">{{ industrial_count|default:0 }}</span>
-                    <span class="stat-card-label">Industrial</span>
-                </div>
-            </div>
+        {% for stat in corporation_stats %}
+        <div class="corp-stat-chip" style="border-left-color: {% cycle '#3498db' '#e67e22' '#2ecc71' '#9b59b6' '#1abc9c' %};">
+            <span class="chip-dot" style="background: {% cycle '#3498db' '#e67e22' '#2ecc71' '#9b59b6' '#1abc9c' %};"></span>
+            <span class="chip-name">{{ stat.name }}</span>
+            <span class="chip-count">{{ stat.count }}</span>
         </div>
+        {% endfor %}
+    </div>
+</div>
 
-        <!-- Corporation Breakdown -->
-        <div class="corporation-breakdown" style="padding: 0 32px 20px 32px;">
-            <div style="display: flex; gap: 16px; flex-wrap: wrap; background: white; padding: 16px 20px; border-radius: 12px; border: 1px solid rgba(15, 59, 94, 0.04);">
-                <span style="font-weight: 600; color: #0f3b5e;">📊 Corporation Breakdown:</span>
-                {% for stat in corporation_stats %}
-                <span style="display: flex; align-items: center; gap: 6px;">
-                    <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: {% cycle '#3498db' '#e67e22' '#2ecc71' '#9b59b6' '#1abc9c' %};"></span>
-                    <strong>{{ stat.name }}:</strong> {{ stat.count }} buildings
-                    <span style="color: #6b7a8a; font-size: 0.85rem;">({{ stat.area|floatformat:0 }} sqft)</span>
-                </span>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- Map Controls -->
-        <div class="map-controls">
-            <div class="control-group">
-                <label for="mapLayer">
-                    <i class="fas fa-layer-group"></i> Background:
-                </label>
-                <select id="mapLayer" onchange="changeMapLayer()">
-                    <option value="satellite" selected>🛰️ Satellite</option>
-                    <option value="street">🗺️ Street</option>
-                    <option value="terrain">⛰️ Terrain</option>
-                    <option value="dark">🌙 Dark</option>
-                    <option value="light">☀️ Light</option>
-                </select>
-            </div>
-            <button onclick="resetMapView()" class="btn-control">
-                <i class="fas fa-home"></i> Reset View
-            </button>
-            <button onclick="toggleClustering()" class="btn-control secondary" id="clusterToggle">
-                <i class="fas fa-object-group"></i> Cluster
-            </button>
-            <button onclick="filterByCorporation()" class="btn-control secondary">
-                <i class="fas fa-filter"></i> Filter
-            </button>
-            <a href="/corporation/dashboard/" class="btn-control secondary">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
-        </div>
-
-        <!-- Map Container -->
-        <div class="map-container">
-            <div id="map" style="height: 600px; width: 100%; border-radius: 16px;"></div>
+<!-- ============================================
+    MAP TOOLBAR
+    ============================================ -->
+<div class="map-toolbar">
+    <div class="toolbar-left">
+        <div class="layer-selector">
+            <i class="fas fa-layer-group"></i>
+            <select id="mapLayer" onchange="changeMapLayer()">
+                <option value="satellite">🛰️ Satellite</option>
+                <option value="osm">🗺️ Street</option>
+                <option value="dark">🌙 Dark</option>
+                <option value="light">☀️ Light</option>
+            </select>
         </div>
     </div>
+    <div class="toolbar-center">
+        <button onclick="enableDrawMode()" class="toolbar-btn btn-draw" id="drawBtn">
+            <i class="fas fa-draw-polygon"></i> Draw Polygon
+        </button>
+        <button onclick="cancelDrawing()" class="toolbar-btn btn-danger" id="cancelDrawBtn" style="display:none; background: #dc3545; color: white;">
+            <i class="fas fa-times"></i> Cancel
+        </button>
+        <button onclick="clearAllFeatures()" class="toolbar-btn btn-danger" style="background: #dc3545; color: white;">
+            <i class="fas fa-trash-alt"></i> Clear
+        </button>
+        <button onclick="filterByCorporation()" class="toolbar-btn btn-filter">
+            <i class="fas fa-filter"></i> Filter
+        </button>
+        <button onclick="openFindGisModal()" class="toolbar-btn btn-find">
+            <i class="fas fa-search-location"></i> Find GIS
+        </button>
+        <button onclick="resetMapView()" class="toolbar-btn btn-reset">
+            <i class="fas fa-home"></i> Reset
+        </button>
+        <button onclick="refreshData()" class="toolbar-btn btn-refresh">
+            <i class="fas fa-sync"></i> Refresh
+        </button>
+        <button onclick="showMapCenter()" class="toolbar-btn" style="background: #6f42c1; color: white;">
+            <i class="fas fa-crosshairs"></i> Get Lat/Long
+        </button>
+    </div>
+    <div class="toolbar-right">
+        <a href="/corporation/dashboard/" class="toolbar-btn btn-dashboard">
+            <i class="fas fa-arrow-left"></i> Dashboard
+        </a>
+    </div>
+</div>
 
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<!-- ============================================
+    MAP CONTAINER
+    ============================================ -->
+<div class="map-wrapper">
+    <div id="map"></div>
+    <!-- Coordinate Display Overlay -->
+    <div id="coordinate-display">
+        <span class="coord-label">📍</span>
+        <span class="coord-value" id="hoverLat">--</span>
+        <span class="coord-divider">|</span>
+        <span class="coord-value" id="hoverLng">--</span>
+        <span class="coord-divider">|</span>
+        <span class="coord-location" id="hoverLocation">--</span>
+        <span class="coord-badge">WGS84</span>
+    </div>
+    <div class="map-watermark">
+        <span>GIS Survey</span>
+    </div>
+</div>
 
-    <style>
-        .map-page {
-            flex: 1;
-            background: #f5f7fa;
-            min-height: 100vh;
-        }
-        
-        .premium-header {
-            background: white;
-            padding: 24px 32px 16px !important;
-            border-bottom: 1px solid rgba(15, 59, 94, 0.04);
-        }
-        
-        .premium-header h2 {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #0f3b5e;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 0;
-        }
-        
-        .premium-header h2 i {
-            color: #1a8a7a;
-        }
-        
-        .premium-header p {
-            color: #6b7a8a;
-            margin: 4px 0 0 0;
-            font-size: 0.95rem;
-        }
-        
-        .premium-stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 16px;
-            padding: 20px 32px 12px !important;
-            background: transparent !important;
-        }
-        
-        .stat-card-premium {
-            background: white;
-            border-radius: 12px;
-            padding: 18px 22px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            border: 1px solid rgba(15, 59, 94, 0.04);
-            transition: all 0.3s ease;
-        }
-        
-        .stat-card-premium:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-        }
-        
-        .stat-card-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            flex-shrink: 0;
-        }
-        
-        .stat-card-icon.blue { background: rgba(15, 59, 94, 0.08); color: #0f3b5e; }
-        .stat-card-icon.green { background: rgba(26, 138, 122, 0.08); color: #1a8a7a; }
-        .stat-card-icon.orange { background: rgba(230, 126, 34, 0.08); color: #e67e22; }
-        .stat-card-icon.purple { background: rgba(155, 89, 182, 0.08); color: #8e44ad; }
-        
-        .stat-card-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .stat-card-number {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: #1a2a3a;
-            line-height: 1.2;
-        }
-        
-        .stat-card-label {
-            font-size: 0.75rem;
-            color: #6b7a8a;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .map-controls {
-            padding: 0 32px 20px 32px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: white;
-            padding: 8px 16px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            border: 1px solid rgba(15, 59, 94, 0.04);
-            flex: 1;
-            max-width: 350px;
-        }
-        
-        .control-group label {
-            font-weight: 600;
-            color: #1a2a3a;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.9rem;
-            white-space: nowrap;
-        }
-        
-        .control-group label i {
-            color: #1a8a7a;
-        }
-        
-        .control-group select {
-            padding: 6px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(15, 59, 94, 0.1);
-            font-size: 0.9rem;
-            font-family: 'Inter', sans-serif;
-            background: #f5f7fa;
-            cursor: pointer;
-            outline: none;
-            flex: 1;
-            min-width: 120px;
-            transition: border-color 0.2s;
-        }
-        
-        .control-group select:focus {
-            border-color: #1a8a7a;
-        }
-        
-        .btn-control {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #1a8a7a, #23b5a0);
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
-            white-space: nowrap;
-            text-decoration: none;
-        }
-        
-        .btn-control:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(26, 138, 122, 0.3);
-        }
-        
-        .btn-control.secondary {
-            background: white;
-            color: #1a2a3a;
-            border: 1px solid rgba(15, 59, 94, 0.1);
-        }
-        
-        .btn-control.secondary:hover {
-            background: #f5f7fa;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-        }
-        
-        .map-container {
-            padding: 0 32px 24px 32px;
-        }
-        
-        #map {
-            height: 550px;
-            width: 100%;
-            border-radius: 16px;
-            border: 1px solid rgba(15, 59, 94, 0.06);
-            background: #e8ecf0;
-        }
-        
-        .building-popup .leaflet-popup-content-wrapper {
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            background: white;
-        }
-        
-        .building-popup .leaflet-popup-content {
-            font-family: 'Inter', sans-serif;
-            padding: 12px 8px;
-            min-width: 200px;
-            max-width: 300px;
-        }
-        
-        .building-popup .leaflet-popup-tip {
-            background: white;
-        }
-        
-        .info-message {
-            background: white;
-            padding: 20px 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 300px;
-        }
-        
-        .info-message .icon {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-        
-        .info-message h4 {
-            margin: 0 0 8px 0;
-            color: #1a2a3a;
-        }
-        
-        .info-message p {
-            margin: 0;
-            color: #6b7a8a;
-            font-size: 0.9rem;
-        }
-        
-        .cluster-marker {
-            background: none;
-            border: none;
-        }
-        
-        .corp-banner {
-            background: linear-gradient(135deg, #0f3b5e, #1a5276);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            margin: 0 32px 16px 32px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-        
-        @media (max-width: 768px) {
-            .corp-banner {
-                margin: 0 16px 12px 16px !important;
-                flex-direction: column;
-                align-items: stretch;
-                text-align: center;
-            }
-            
-            .premium-header {
-                padding: 16px 20px 12px !important;
-            }
-            
-            .premium-header h2 {
-                font-size: 1.3rem;
-            }
-            
-            .premium-stats-row {
-                grid-template-columns: 1fr 1fr;
-                padding: 12px 16px 8px !important;
-                gap: 10px;
-            }
-            
-            .stat-card-premium {
-                padding: 14px 16px;
-            }
-            
-            .stat-card-number {
-                font-size: 1.1rem;
-            }
-            
-            .map-controls {
-                padding: 0 16px 16px 16px !important;
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .control-group {
-                max-width: 100%;
-                flex-wrap: wrap;
-            }
-            
-            .map-container {
-                padding: 0 16px 16px 16px;
-            }
-            
-            #map {
-                height: 400px;
-            }
-            
-            .btn-control {
-                justify-content: center;
-            }
-            
-            .corporation-breakdown {
-                padding: 0 16px 16px 16px !important;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .premium-stats-row {
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-            }
-            
-            .stat-card-premium {
-                padding: 12px;
-                gap: 10px;
-            }
-            
-            .stat-card-icon {
-                width: 36px;
-                height: 36px;
-                font-size: 1rem;
-            }
-            
-            #map {
-                height: 300px;
-            }
-        }
-    </style>
-
-    <script>
-        // Make sure these variables are declared at the top
-var map;
-var geojsonLayer = null;
-var clusterGroup = null;
-var isClustering = false;
-var currentLayer = 'satellite';
-var originalData = null;
-var currentData = null;
-// Map layers configuration
-var mapLayers = {
-    'satellite': L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google',
-        maxZoom: 20,
-        subdomains: ['mt1', 'mt2', 'mt3']
-    }),
-    'street': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-    }),
-    'terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenTopoMap contributors',
-        maxZoom: 17
-    }),
-    'dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap, CartoDB',
-        maxZoom: 19
-    }),
-    'light': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap, CartoDB',
-        maxZoom: 19
-    })
-};
-
-// Color scheme for corporations
-var corpColors = {
-    'Coimbatore': '#3498db',
-    'Nithish': '#e67e22',
-    'salem': '#2ecc71',
-};
-
-function getCorporationColor(corpName) {
-    return corpColors[corpName] || '#9b59b6';
-}
-
-function createClusterIcon(cluster) {
-    var count = cluster.getChildCount();
-    var color = count > 50 ? '#e74c3c' : count > 20 ? '#e67e22' : '#3498db';
-    
-    return L.divIcon({
-        html: `<div style="background:${color};color:white;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.2);border:2px solid white;">${count}</div>`,
-        className: 'cluster-marker',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
-    });
-}
-
-function renderGeoJSON(data) {
-    if (!data || !data.features || data.features.length === 0) {
-        showNoDataMessage();
-        return;
-    }
-
-   currentData = data;
-
-if (originalData === null) {
-    originalData = JSON.parse(JSON.stringify(data));
-}
-    console.log('✅ Loaded', data.features.length, 'buildings from all corporations');
-
-    // Remove old layers
-    if (geojsonLayer) {
-        map.removeLayer(geojsonLayer);
-        geojsonLayer = null;
-    }
-    if (clusterGroup) {
-        map.removeLayer(clusterGroup);
-        clusterGroup = null;
-    }
-
-    // Create GeoJSON layer
-    geojsonLayer = L.geoJSON(data, {
-        style: function(feature) {
-            var corpName = feature.properties.corporation || '';
-            var color = getCorporationColor(corpName);
-            
-            return {
-                color: color,
-                weight: 2,
-                opacity: 0.8,
-                fillColor: color,
-                fillOpacity: 0.4,
-                dashArray: null
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            var props = feature.properties;
-            var corpName = props.corporation || 'Unknown';
-            var color = getCorporationColor(corpName);
-            
-            var popupContent = `
-                <div style="font-family: 'Inter', sans-serif; min-width: 220px; max-width: 320px;">
-                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:8px;">
-                        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};"></span>
-                        <h4 style="margin:0;color:#1a2a3a;font-size:1rem;">${props.building_name || props.gis_id || 'Building'}</h4>
+<!-- ============================================
+    BUILDING FORM MODAL
+    ============================================ -->
+<!-- ============================================
+    BUILDING FORM MODAL - COMPLETE TWO-COLUMN LAYOUT
+    ============================================ -->
+<div class="modal fade" id="buildingModal" tabindex="-1" aria-labelledby="buildingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content premium-modal">
+            <!-- ===== HEADER ===== -->
+            <div class="modal-header premium-modal-header">
+                <div class="modal-header-content">
+                    <div class="modal-icon-wrapper">
+                        <i class="fas fa-building"></i>
                     </div>
-                    <table style="width:100%;font-size:0.85rem;border-collapse:collapse;">
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>ID:</strong></td><td style="padding:2px 4px;">${props.id || 'N/A'}</td></tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>Number:</strong></td><td style="padding:2px 4px;">${props.building_number || 'N/A'}</td></tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>Area:</strong></td><td style="padding:2px 4px;">${props.area ? props.area.toFixed(2) : 'N/A'} sqft</td></tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>Type:</strong></td><td style="padding:2px 4px;">${props.building_type || 'N/A'}</td></tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>Floors:</strong></td><td style="padding:2px 4px;">${props.floors || 'N/A'}</td></tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>Owner:</strong></td><td style="padding:2px 4px;">${props.owner_name || 'N/A'}</td></tr>
-                        <tr style="background: #f0f7ff; border-radius: 4px;">
-                            <td style="padding:2px 4px;color:#0f3b5e;"><strong>🏛️ Corporation:</strong></td>
-                            <td style="padding:2px 4px;font-weight:600;color:#0f3b5e;">${props.corporation || 'N/A'}</td>
-                        </tr>
-                        <tr><td style="padding:2px 4px;color:#5a7a8a;"><strong>City:</strong></td><td style="padding:2px 4px;">${props.city || 'New Delhi'}</td></tr>
-                    </table>
+                    <div>
+                        <h5 class="modal-title" id="buildingModalLabel">Building Details</h5>
+                        <span class="modal-subtitle" id="modalSubtitle">Add or update building information</span>
+                    </div>
                 </div>
-            `;
-            
-            layer.bindPopup(popupContent, {
-                className: 'building-popup',
-                maxWidth: 320
-            });
-            
-            // Hover effects
-            layer.on('mouseover', function(e) {
-                var corpName = feature.properties.corporation || '';
-                var color = getCorporationColor(corpName);
-                this.setStyle({
-                    weight: 3,
-                    color: '#e74c3c',
-                    fillOpacity: 0.7
-                });
-                this.bringToFront();
-            });
-            
-            layer.on('mouseout', function(e) {
-                var corpName = feature.properties.corporation || '';
-                var color = getCorporationColor(corpName);
-                this.setStyle({
-                    weight: 2,
-                    color: color,
-                    fillOpacity: 0.4
-                });
-            });
-        }
-    });
+                <button type="button" class="close premium-close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
 
-    // Add to map based on clustering setting
-    if (isClustering) {
-        clusterGroup = L.markerClusterGroup({
-            maxClusterRadius: 50,
-            iconCreateFunction: createClusterIcon
-        });
-        
-        geojsonLayer.eachLayer(function(layer) {
-            clusterGroup.addLayer(layer);
-        });
-        
-        clusterGroup.addTo(map);
-    } else {
-        geojsonLayer.addTo(map);
-    }
+            <!-- ===== BODY ===== -->
+            <div class="modal-body">
+                <form id="buildingForm" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" id="buildingId">
 
-    // Fit map bounds after a small delay to ensure layers are rendered
-    setTimeout(function() {
-        fitBounds();
-    }, 100);
+                    <!-- Building ID Badge -->
+                    <div class="building-id-badge">
+                        <i class="fas fa-hashtag"></i>
+                        <span class="badge-label">Building ID</span>
+                        <span class="badge-value" id="displayBuildingId">#NEW</span>
+                    </div>
+
+                    <!-- ===== TWO-COLUMN LAYOUT ===== -->
+                    <div class="form-grid-2col">
+
+                        <!-- ===== LEFT COLUMN ===== -->
+                        <div class="form-column">
+                            
+                            <!-- SECTION: Basic Information -->
+                            <fieldset class="form-section">
+                                <legend class="section-legend">
+                                    <i class="fas fa-info-circle"></i> Basic Information
+                                </legend>
+                                <div class="form-group" style="padding-bottom: 5px;">
+                                    <label for="gisId">
+                                        <i class="fas fa-tag"></i> GIS ID 
+                                        <span class="required">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="gisId" 
+                                           placeholder="Enter GIS ID"
+                                           maxlength="50">
+                    
+                                <div class="form-group">
+                                    <label for="buildingName">
+                                        <i class="fas fa-font"></i> Building Name
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="buildingName" 
+                                           placeholder="Enter building name"
+                                           maxlength="100">
+                                </div>
+                                
+                            </fieldset>
+
+                            <!-- SECTION: Physical Attributes -->
+                            <fieldset class="form-section">
+                                <legend class="section-legend">
+                                    <i class="fas fa-cubes"></i> Physical Attributes
+                                </legend>
+                                <div class="form-group">
+                                    <label for="buildingType">
+                                        <i class="fas fa-layer-group"></i> Building Type 
+                                        <span class="required">*</span>
+                                    </label>
+                                    <select class="form-control premium-input" id="buildingType">
+                                        <option value="">Select Type</option>
+                                        <option value="RESIDENTIAL">🏠 Residential</option>
+                                        <option value="COMMERCIAL">🏢 Commercial</option>
+                                        <option value="INDUSTRIAL">🏭 Industrial</option>
+                                        <option value="GOVERNMENT">🏛️ Government</option>
+                                        <option value="MIXED_USE">🏗️ Mixed Use</option>
+                                        <option value="OTHER">📋 Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="floors">
+                                        <i class="fas fa-arrows-alt-v"></i> Floors
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control premium-input" 
+                                           id="floors" 
+                                           placeholder="0"
+                                           min="0"
+                                           max="200"
+                                           step="1">
+                                    <small class="form-text text-muted">Between 0 and 200</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="area">
+                                        <i class="fas fa-vector-square"></i> Area (sqft) 
+                                        <span class="required">*</span>
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control premium-input" 
+                                           id="area" 
+                                           placeholder="Enter area"
+                                           min="0.01"
+                                           step="0.01">
+                                </div>
+                            </fieldset>
+                        </div>
+
+                        <!-- ===== RIGHT COLUMN ===== -->
+                        <div class="form-column">
+                            
+                            <!-- SECTION: Location & Ownership -->
+                            <fieldset class="form-section">
+                                <legend class="section-legend">
+                                    <i class="fas fa-map-marked-alt"></i> Location & Ownership
+                                </legend>
+                                <div class="form-group">
+                                    <label for="corporation">
+                                        <i class="fas fa-building"></i> Corporation 
+                                        <span class="required">*</span>
+                                    </label>
+                                    <select class="form-control premium-input" id="corporation">
+                                        <option value="">Select Corporation</option>
+                                        {% for corp in corporations %}
+                                        <option value="{{ corp.id }}">{{ corp.name }}</option>
+                                        {% empty %}
+                                        <option value="" disabled>No corporations available</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ward">
+                                        <i class="fas fa-map-pin"></i> Ward
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="ward" 
+                                           placeholder="Enter ward number"
+                                           maxlength="50">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ownerName">
+                                        <i class="fas fa-user"></i> Owner Name
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="ownerName" 
+                                           placeholder="Full name"
+                                           maxlength="100">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ownerContact">
+                                        <i class="fas fa-phone"></i> Owner Contact
+                                    </label>
+                                    <input type="tel" 
+                                           class="form-control premium-input" 
+                                           id="ownerContact" 
+                                           placeholder="Phone number"
+                                           maxlength="20">
+                                    <small class="form-text text-muted">Include country code if applicable</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="city">
+                                        <i class="fas fa-city"></i> City
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="city" 
+                                           placeholder="City name"
+                                           maxlength="50">
+                                </div>
+                                <div class="form-group">
+                                    <label for="state">
+                                        <i class="fas fa-map"></i> State/Province
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control premium-input" 
+                                           id="state" 
+                                           placeholder="State or province"
+                                           maxlength="50">
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <!-- ===== FULL WIDTH: Geometry Section ===== -->
+                    <fieldset class="form-section full-width-section">
+                        <legend class="section-legend">
+                            <i class="fas fa-draw-polygon"></i> Polygon Coordinates
+                        </legend>
+                        <div class="form-group">
+                            <label for="geometryCoords">
+                                <i class="fas fa-edit"></i> Coordinates (Latitude, Longitude)
+                            </label>
+                            <textarea class="form-control premium-input" 
+                                      id="geometryCoords" 
+                                      rows="3" 
+                                      placeholder="Draw a polygon on the map to capture coordinates&#10;Format: lat,lng (one per line)"
+                                      readonly></textarea>
+                            <div class="coordinate-actions">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="captureCoordinates">
+                                    <i class="fas fa-crosshairs"></i> Capture from Map
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="clearCoordinates">
+                                    <i class="fas fa-undo"></i> Clear
+                                </button>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Supports WGS84 & Web Mercator — auto-converts!
+                                </small>
+                            </div>
+                        </div>
+                        <div id="coordinateStatus" class="coordinate-status" style="display:none;"></div>
+                    </fieldset>
+
+                    <!-- Form Status -->
+                    <div id="formStatus" class="form-status" style="display:none;"></div>
+                </form>
+            </div>
+
+            <!-- ===== FOOTER ===== -->
+            <div class="modal-footer premium-modal-footer">
+                <div class="footer-left">
+                    <span id="saveIndicator" class="status-indicator">
+                        <i class="fas fa-circle text-success" style="font-size: 8px;"></i> All fields valid
+                    </span>
+                </div>
+                <div class="footer-right">
+                    <button type="button" class="btn premium-btn premium-btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button type="button" class="btn premium-btn premium-btn-danger" id="deleteBuildingBtn" style="display:none;">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <button type="button" class="btn premium-btn premium-btn-primary" id="saveBuilding">
+                        <i class="fas fa-save"></i> Save Building
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>/* ============================================
+   TWO-COLUMN FORM LAYOUT - FIX
+   ============================================ */
+
+/* Form Grid - Two Columns */
+.form-grid-2col {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+    margin-bottom: 16px !important;
 }
 
-function fitBounds() {
-    var layer = isClustering ? clusterGroup : geojsonLayer;
-    if (layer && layer.getBounds && layer.getBounds().isValid()) {
-        map.fitBounds(layer.getBounds().pad(0.05));
-    } else {
-        map.setView([28.6139, 77.2090], 12);
+.form-column {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+}
+
+/* Form Sections */
+.form-section {
+    background: #f8fafc !important;
+    border-radius: 12px !important;
+    padding: 16px 18px !important;
+    border: 1px solid #eef2f6 !important;
+    margin-bottom: 0 !important;
+}
+
+.form-section .section-legend {
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    color: #1a2a3a !important;
+    margin-bottom: 0px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 2px solid #eef2f6 !important;
+    width: 100% !important;
+}
+
+.form-section .section-legend i {
+    color: #1a8a7a !important;
+    font-size: 0.9rem !important;
+}
+
+/* Full width section */
+.full-width-section {
+    grid-column: 1 / -1 !important;
+    margin-top: 0 !important;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 12px !important;
+}
+
+.form-group:last-child {
+    margin-bottom: 0 !important;
+}
+
+.form-group label {
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    color: #2c3e50 !important;
+    margin-bottom: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.form-group label .required {
+    color: #e74c3c !important;
+    font-weight: 700 !important;
+}
+
+/* Premium Inputs - override */
+.premium-input {
+    border-radius: 8px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    padding: 8px 14px !important;
+    font-size: 0.85rem !important;
+    transition: all 0.2s ease !important;
+    background: #ffffff !important;
+    height: 40px !important;
+    width: 100% !important;
+}
+
+.premium-input:focus {
+    border-color: #1a8a7a !important;
+    box-shadow: 0 0 0 3px rgba(26, 138, 122, 0.08) !important;
+}
+
+.premium-input::placeholder {
+    color: #a0aec0 !important;
+    font-size: 0.8rem !important;
+}
+
+/* Textarea */
+textarea.premium-input {
+    height: auto !important;
+    min-height: 60px !important;
+    resize: vertical !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 0.8rem !important;
+}
+
+/* Coordinate Actions */
+.coordinate-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-top: 8px !important;
+    flex-wrap: wrap !important;
+}
+
+.coordinate-actions .btn {
+    font-size: 0.75rem !important;
+    padding: 4px 12px !important;
+    border-radius: 6px !important;
+}
+
+.coordinate-actions .text-muted {
+    font-size: 0.7rem !important;
+}
+
+/* Building ID Badge - override */
+.building-id-badge {
+    background: linear-gradient(135deg, #eef3f9, #e8edf4) !important;
+    padding: 8px 18px !important;
+    border-radius: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 18px !important;
+    border: 1px solid #dce4ed !important;
+}
+
+.building-id-badge i {
+    color: #1a8a7a !important;
+    font-size: 0.9rem !important;
+}
+
+.building-id-badge .badge-label {
+    color: #6c757d !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.building-id-badge .badge-value {
+    color: #0f3b5e !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+}
+
+/* Form Status */
+.form-status {
+    padding: 10px 16px !important;
+    border-radius: 8px !important;
+    margin-top: 12px !important;
+    font-size: 0.85rem !important;
+}
+
+.form-status.success {
+    background: #d4edda !important;
+    color: #155724 !important;
+    border: 1px solid #c3e6cb !important;
+}
+
+.form-status.error {
+    background: #f8d7da !important;
+    color: #721c24 !important;
+    border: 1px solid #f5c6cb !important;
+}
+
+.form-status.info {
+    background: #d1ecf1 !important;
+    color: #0c5460 !important;
+    border: 1px solid #bee5eb !important;
+}
+
+/* Footer */
+.premium-modal-footer {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 14px 24px !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+}
+
+.footer-left .status-indicator {
+    font-size: 0.75rem !important;
+    color: #6c757d !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.footer-right {
+    display: flex !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+}
+
+/* Buttons */
+.premium-btn {
+    padding: 7px 20px !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    transition: all 0.2s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border: none !important;
+    cursor: pointer !important;
+    height: 38px !important;
+}
+
+.premium-btn-primary {
+    background: linear-gradient(135deg, #1a8a7a, #2eccb0) !important;
+    color: white !important;
+}
+
+.premium-btn-primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(26, 138, 122, 0.3) !important;
+}
+
+.premium-btn-danger {
+    background: linear-gradient(135deg, #dc3545, #e74c3c) !important;
+    color: white !important;
+}
+
+.premium-btn-danger:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+}
+
+.premium-btn-secondary {
+    background: #eef2f6 !important;
+    color: #2c3e50 !important;
+}
+
+.premium-btn-secondary:hover {
+    background: #dce1e8 !important;
+}
+
+/* Modal Body */
+.modal-body {
+    padding: 24px 28px !important;
+    background: #ffffff !important;
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+    .form-grid-2col {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
     }
 }
 
-function showNoDataMessage() {
-    var noDataControl = L.control({ position: 'bottomleft' });
-    noDataControl.onAdd = function() {
-        var div = L.DomUtil.create('div', 'info-message');
-        div.innerHTML = `
-            <div class="icon">🏢</div>
-            <h4>No Buildings Found</h4>
-            <p>Upload GeoJSON files for corporations to see buildings here.</p>
-            <a href="/corporation/dashboard/" style="display:inline-block;margin-top:10px;padding:8px 20px;background:#1a8a7a;color:white;border-radius:8px;text-decoration:none;">
-                Go to Corporation Dashboard
-            </a>
-        `;
-        return div;
+@media (max-width: 768px) {
+    .modal-body {
+        padding: 16px 18px !important;
+    }
+    
+    .form-section {
+        padding: 12px 14px !important;
+    }
+    
+    .premium-modal-footer {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    
+    .footer-right {
+        justify-content: center !important;
+    }
+    
+    .premium-btn {
+        flex: 1 !important;
+        justify-content: center !important;
+        font-size: 0.75rem !important;
+        padding: 6px 14px !important;
+    }
+    
+    .building-id-badge {
+        padding: 6px 14px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-body {
+        padding: 12px 14px !important;
+    }
+    
+    .form-section {
+        padding: 10px 12px !important;
+    }
+    
+    .form-section .section-legend {
+        font-size: 0.75rem !important;
+    }
+    
+    .premium-input {
+        font-size: 0.8rem !important;
+        padding: 6px 10px !important;
+        height: 36px !important;
+    }
+    
+    .coordinate-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    
+    .coordinate-actions .btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}</style>
+<!-- ============================================
+    FIND GIS ID MODAL
+    ============================================ -->
+<div class="modal fade" id="findGisModal" tabindex="-1" style="display: none;">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content premium-modal">
+            <div class="modal-header premium-modal-header" style="background: linear-gradient(135deg, #6f42c1, #8e44ad);">
+                <div class="modal-header-content">
+                    <div class="modal-icon-wrapper">
+                        <i class="fas fa-search-location"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Find GIS ID</h5>
+                        <span class="modal-subtitle">Locate a property by its GIS ID</span>
+                    </div>
+                </div>
+                <button type="button" class="close premium-close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="findGisForm" onsubmit="return false;">
+                    <div class="form-group">
+                        <label style="font-weight:600; color:#2c3e50; display:flex; align-items:center; gap:8px; font-size:1rem;">
+                            <i class="fas fa-hashtag" style="color:#6f42c1;"></i> GIS ID
+                        </label>
+                        <div class="premium-input-group">
+                            <input type="text" 
+                                class="form-control premium-input" 
+                                id="findGisInput" 
+                                placeholder="Enter GIS ID (e.g., 1000)" 
+                                style="border-radius:10px 0 0 10px;">
+                            <button class="btn premium-btn premium-btn-find" id="findGisBtn">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                        <small class="text-muted" style="display:block; margin-top:6px;">
+                            <i class="fas fa-info-circle"></i> Enter a valid GIS ID to locate the property on the map
+                        </small>
+                    </div>
+                    <div id="findGisResult" style="margin-top:16px; display:none; padding:16px; border-radius:10px; background:white; border:1px solid #eef2f6;">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer premium-modal-footer">
+                <button type="button" class="btn premium-btn premium-btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+    PREMIUM TOAST
+    ============================================ -->
+<div id="toast" class="premium-toast">
+    <div class="toast-icon">✅</div>
+    <div class="toast-content">
+        <div class="toast-message">Success!</div>
+    </div>
+</div>
+
+<!-- ============================================
+    SCRIPTS
+    ============================================ -->
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<style>
+/* ============================================
+PREMIUM DESIGN - OPENLAYERS MAP
+============================================ */
+
+:root {
+    --primary: #0f3b5e;
+    --primary-light: #1a5276;
+    --secondary: #1a8a7a;
+    --secondary-light: #2eccb0;
+    --accent: #6c5ce7;
+    --accent-light: #a29bfe;
+    --success: #00b894;
+    --success-light: #00cec9;
+    --danger: #e74c3c;
+    --danger-dark: #c0392b;
+    --bg-light: #f0f4f8;
+    --card-shadow: 0 8px 32px rgba(15, 59, 94, 0.08);
+    --card-shadow-hover: 0 12px 48px rgba(15, 59, 94, 0.15);
+    --radius: 16px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---------- Premium Banner ---------- */
+.premium-banner {
+    position: relative;
+    background: linear-gradient(135deg, #0f3b5e 0%, #1a5276 50%, #1f6b8a 100%);
+    border-radius: var(--radius);
+    padding: 24px 32px;
+    margin: 0 20px 12px 20px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(15, 59, 94, 0.2);
+}
+
+.banner-bg-pattern {
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(46, 204, 176, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.banner-bg-pattern::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: 20%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.banner-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+}
+
+.banner-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.banner-icon-wrapper {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #2eccb0;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.banner-icon-pulse {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    border: 2px solid rgba(46, 204, 176, 0.3);
+    animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+    0% { transform: scale(1); opacity: 1; }
+    70% { transform: scale(1.2); opacity: 0; }
+    100% { transform: scale(1); opacity: 0; }
+}
+
+.banner-text h1 {
+    color: white;
+    font-weight: 700;
+    font-size: 1.6rem;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.banner-subtitle {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #2eccb0;
+    border-radius: 50%;
+    animation: live-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.banner-right {
+    display: flex;
+    gap: 24px;
+}
+
+.premium-stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(4px);
+}
+
+.stat-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(26, 138, 122, 0.2);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2eccb0;
+    font-size: 1rem;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: white;
+}
+
+/* ---------- Corporation Stats ---------- */
+.corp-stats-container {
+    padding: 0 20px 8px 20px;
+}
+
+.corp-stats-scroll {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 0 8px 0;
+    scrollbar-width: thin;
+}
+
+.corp-stats-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+
+.corp-stats-scroll::-webkit-scrollbar-track {
+    background: #e9edf2;
+    border-radius: 10px;
+}
+
+.corp-stats-scroll::-webkit-scrollbar-thumb {
+    background: #c5d0db;
+    border-radius: 10px;
+}
+
+.corp-stat-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1a2a3a;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border: 1px solid #eef2f6;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.corp-stat-all:hover {
+    border-color: #1a8a7a;
+    box-shadow: 0 4px 12px rgba(26, 138, 122, 0.12);
+}
+
+.corp-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 6px 14px 6px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border: 1px solid #eef2f6;
+    border-left: 3px solid #3498db;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.corp-stat-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border-color: #dce1e8;
+}
+
+.chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.chip-name {
+    font-weight: 500;
+    color: #1a2a3a;
+}
+
+.chip-count {
+    font-weight: 700;
+    color: #0f3b5e;
+    background: #f0f4f8;
+    padding: 0 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+}
+
+/* ---------- Map Toolbar ---------- */
+.map-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 20px 12px 20px;
+}
+
+.toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toolbar-center {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.layer-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 4px 12px;
+    border-radius: 10px;
+    border: 1px solid #e9edf2;
+    font-size: 0.85rem;
+    color: #5a7a8a;
+}
+
+.layer-selector select {
+    border: none;
+    background: none;
+    padding: 6px 4px;
+    font-size: 0.85rem;
+    color: #1a2a3a;
+    outline: none;
+    cursor: pointer;
+}
+
+.toolbar-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.toolbar-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.btn-draw { background: linear-gradient(135deg, #28a745, #34ce57); color: white; }
+.btn-filter { background: #17a2b8; color: white; }
+.btn-find { background: linear-gradient(135deg, #6f42c1, #8e44ad); color: white; }
+.btn-reset { background: #1a8a7a; color: white; }
+.btn-refresh { background: #007bff; color: white; }
+.btn-dashboard { background: white; color: #1a2a3a; border: 1px solid #dce1e8; }
+.btn-danger { background: #dc3545; color: white; }
+
+/* ---------- Map Container ---------- */
+.map-wrapper {
+    position: relative;
+    padding: 0 20px 20px 20px;
+}
+
+#map {
+    height: 65vh;
+    width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid rgba(0,0,0,0.06);
+    background: #e8ecf0;
+    box-shadow: var(--card-shadow);
+}
+
+.map-watermark {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: rgba(0,0,0,0.06);
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 500;
+}
+
+/* Hide OpenLayers controls */
+.ol-rotate { display: none !important; }
+.ol-attribution { display: none !important; }
+.ol-zoom { display: none !important; }
+
+/* ============================================
+MODAL CENTERING & BACKGROUND FIX
+============================================ */
+
+/* Ensure modal backdrop and wrapper cover the entire screen evenly */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1050;
+    overflow-x: hidden;
+    overflow-y: auto;
+    outline: 0;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Force dead-center placement inside the viewport */
+.modal-dialog.modal-dialog-centered {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: calc(100% - 3.5rem) !important;
+    margin: 0 auto !important;
+    padding: 20px;
+}
+
+/* Modal content - solid background */
+.modal-content.premium-modal {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background: #ffffff !important;
+    border-radius: 20px !important;
+    border: none !important;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35) !important;
+    overflow: hidden !important;
+}
+
+/* Modal body with scrolling and solid background */
+.modal-body {
+    background: #ffffff !important;
+    overflow-y: auto;
+    max-height: calc(85vh - 130px);
+    padding: 24px 28px !important;
+}
+
+/* Modal header - keep gradient but ensure contrast */
+.premium-modal-header {
+    background: linear-gradient(135deg, #0f3b5e, #1a5276) !important;
+    color: white !important;
+    padding: 24px 28px !important;
+    border: none !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-shrink: 0;
+}
+
+/* Modal footer with solid background */
+.premium-modal-footer {
+    background: #f8f9fa !important;
+    border-top: 1px solid #eef2f6 !important;
+    padding: 16px 24px !important;
+    border-radius: 0 0 20px 20px !important;
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Modal close button */
+.premium-close {
+    color: white !important;
+    opacity: 0.7 !important;
+    font-size: 1.8rem !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer;
+}
+
+.premium-close:hover {
+    opacity: 1 !important;
+    transform: rotate(90deg);
+}
+
+/* Modal header content */
+.modal-header-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.modal-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: #2eccb0;
+    flex-shrink: 0;
+}
+
+.modal-title {
+    color: white !important;
+    font-weight: 700 !important;
+    font-size: 1.3rem !important;
+    margin: 0 !important;
+}
+
+.modal-subtitle {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 0.85rem !important;
+    display: block;
+}
+
+/* Form inputs - ensure solid background */
+.premium-input {
+    border-radius: 10px !important;
+    border: 1.5px solid #e9edf2 !important;
+    padding: 10px 14px !important;
+    font-size: 0.9rem !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    background: #ffffff !important;
+}
+
+.premium-input:focus {
+    border-color: #1a8a7a !important;
+    box-shadow: 0 0 0 3px rgba(26, 138, 122, 0.10) !important;
+    background: #ffffff !important;
+}
+
+/* Building ID badge */
+.building-id-badge {
+    background: #eef3f9 !important;
+    padding: 8px 16px;
+    border-radius: 40px;
+    margin-bottom: 15px;
+    display: inline-block;
+}
+
+.building-id-badge .badge-label {
+    color: #6c757d;
+    font-size: 0.75rem;
+    margin-right: 8px;
+}
+
+.building-id-badge .badge-value {
+    color: #0f3b5e;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+/* Form grid */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #2c3e50;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group label .required {
+    color: #e74c3c;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Form status messages */
+.form-status {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.form-status.success {
+    background: #d4edda !important;
+    color: #155724 !important;
+    border: 1px solid #c3e6cb !important;
+}
+
+.form-status.error {
+    background: #f8d7da !important;
+    color: #721c24 !important;
+    border: 1px solid #f5c6cb !important;
+}
+
+.form-status.info {
+    background: #d1ecf1 !important;
+    color: #0c5460 !important;
+    border: 1px solid #bee5eb !important;
+}
+
+/* Buttons */
+.premium-btn {
+    padding: 8px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+.premium-btn-primary {
+    background: linear-gradient(135deg, #1a8a7a, #2eccb0);
+    color: white;
+}
+
+.premium-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(26, 138, 122, 0.3);
+}
+
+.premium-btn-danger {
+    background: linear-gradient(135deg, #dc3545, #e74c3c);
+    color: white;
+}
+
+.premium-btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(220, 53, 69, 0.3);
+}
+
+.premium-btn-secondary {
+    background: #eef2f6;
+    color: #2c3e50;
+}
+
+.premium-btn-secondary:hover {
+    background: #dce1e8;
+}
+
+.premium-btn-find {
+    background: linear-gradient(135deg, #6f42c1, #8e44ad);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 0 10px 10px 0;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.premium-toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: white;
+    padding: 16px 24px;
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: none;
+    align-items: center;
+    gap: 14px;
+    z-index: 9999;
+    border-left: 4px solid #28a745;
+    min-width: 280px;
+}
+
+.premium-toast.show {
+    display: flex;
+}
+
+/* ---------- Form Styles ---------- */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #2c3e50;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group label .required {
+    color: #e74c3c;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.building-id-badge {
+    background: #eef3f9;
+    padding: 8px 16px;
+    border-radius: 40px;
+    margin-bottom: 15px;
+    display: inline-block;
+}
+
+.building-id-badge .badge-label {
+    color: #6c757d;
+    font-size: 0.75rem;
+    margin-right: 8px;
+}
+
+.building-id-badge .badge-value {
+    color: #0f3b5e;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.form-status {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.form-status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.form-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.form-status.info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+    .modal-dialog.modal-dialog-centered {
+        padding: 10px;
+        margin: 0 !important;
+        min-height: calc(100% - 1rem) !important;
+        align-items: flex-start !important;
+        padding-top: 20px !important;
+    }
+    
+    .modal-content.premium-modal {
+        max-height: 90vh;
+        border-radius: 16px !important;
+    }
+    
+    .modal-body {
+        max-height: calc(90vh - 110px);
+        padding: 16px 18px !important;
+    }
+    
+    .premium-modal-header {
+        padding: 16px 18px !important;
+        flex-wrap: wrap !important;
+    }
+    
+    .premium-modal-footer {
+        padding: 12px 16px !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+    }
+    
+    .form-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .premium-btn {
+        padding: 8px 16px !important;
+        font-size: 0.8rem !important;
+        flex: 1 !important;
+        justify-content: center !important;
+        min-width: 80px !important;
+    }
+    
+    .modal-title {
+        font-size: 1.1rem !important;
+    }
+
+    .premium-banner { padding: 16px 20px; margin: 0 10px 10px 10px; }
+    .banner-content { flex-direction: column; align-items: stretch; }
+    .banner-text h1 { font-size: 1.2rem; }
+    .map-toolbar { flex-direction: column; padding: 4px 10px 10px 10px; }
+    .toolbar-center { justify-content: center; }
+    .map-wrapper { padding: 0 10px 10px 10px; }
+    #map { height: 45vh; }
+    .form-grid { grid-template-columns: 1fr; }
+    .premium-modal-header { padding: 20px !important; flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+    .modal-icon-wrapper { width: 40px !important; height: 40px !important; font-size: 1.2rem !important; }
+    .modal-title { font-size: 1.1rem !important; }
+    .premium-modal-body { padding: 20px !important; }
+    .premium-modal-footer { padding: 16px 20px !important; flex-wrap: wrap !important; justify-content: center !important; }
+    .premium-btn { padding: 8px 20px !important; font-size: 0.8rem !important; flex: 1 !important; justify-content: center !important; }
+    #coordinate-display { font-size: 11px !important; padding: 6px 12px !important; bottom: 20px !important; left: 15px !important; flex-wrap: wrap !important; }
+}
+
+@media (max-width: 480px) {
+    .premium-modal-header { padding: 12px 14px !important; }
+    .premium-modal-body { padding: 12px 14px !important; }
+    .modal-icon-wrapper { width: 36px !important; height: 36px !important; font-size: 1rem !important; }
+    .premium-btn { font-size: 0.75rem !important; padding: 6px 12px !important; }
+    .premium-modal-header { padding: 16px !important; }
+    .premium-modal-body { padding: 16px !important; }
+    .premium-close { width: 32px !important; height: 32px !important; font-size: 1rem !important; }
+    .premium-input, .premium-select, .premium-textarea { padding: 10px 12px !important; font-size: 0.85rem !important; }
+    .form-group label { font-size: 0.7rem !important; }
+    #coordinate-display { font-size: 10px !important; padding: 4px 10px !important; }
+}
+</style>
+
+<script>
+// ============================================
+// ALL FUNCTIONS DEFINED AT THE TOP LEVEL
+// ============================================
+
+// Global variables
+var map = null;
+var vectorSource = null;
+var vectorLayer = null;
+var drawInteraction = null;
+var isDrawing = false;
+var currentPolygonCoords = [];
+var buildingData = { features: [] };
+var corpColors = {};
+var _skipMapFit = false;
+
+// ============================================
+// CSRF TOKEN
+// ============================================
+function getCSRFToken() {
+    var token = document.querySelector('[name=csrfmiddlewaretoken]');
+    return token ? token.value : '';
+}
+
+// ============================================
+// TOAST NOTIFICATION
+// ============================================
+function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    var colors = { 
+        success: '#28a745', 
+        error: '#dc3545', 
+        warning: '#ffc107', 
+        info: '#17a2b8' 
     };
-    noDataControl.addTo(map);
+    t.style.borderLeftColor = colors[type] || '#28a745';
+    var msgEl = t.querySelector('.toast-message');
+    if (msgEl) msgEl.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { 
+        t.classList.remove('show'); 
+    }, 3000);
 }
 
-function changeMapLayer() {
-    var layerType = document.getElementById('mapLayer').value;
-    currentLayer = layerType;
-    
-    map.eachLayer(function(layer) {
-        if (layer instanceof L.TileLayer) {
-            map.removeLayer(layer);
+// ============================================
+// SAFE ELEMENT UPDATE HELPERS
+// ============================================
+function safeSetText(id, value, defaultValue) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.textContent = (value !== undefined && value !== null) ? value : (defaultValue || '--');
+        return true;
+    }
+    return false;
+}
+
+function safeSetValue(id, value) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.value = (value !== undefined && value !== null) ? value : '';
+        return true;
+    }
+    return false;
+}
+
+// ============================================
+// CONVERT EPSG:3857 TO EPSG:4326 (Lat/Lng)
+// ============================================
+function convert3857to4326(x, y) {
+    var lng = (x / 20037508.34) * 180;
+    var lat = (y / 20037508.34) * 180;
+    lat = 180 / Math.PI * (2 * Math.atan(Math.exp(lat * Math.PI / 180)) - Math.PI / 2);
+    return { lat: lat, lng: lng };
+}
+
+// ============================================
+// NORMALIZE BUILDING GEOJSON COORDINATES
+// ============================================
+function normalizeGeoJSON(geojson) {
+    var normalized = JSON.parse(JSON.stringify(geojson));
+    if (!normalized.features) {
+        return normalized;
+    }
+    normalized.features.forEach(function(feature) {
+        if (!feature.geometry) {
+            return;
+        }
+        function normalizeCoordinates(coords) {
+            if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                var value1 = coords[0];
+                var value2 = coords[1];
+                if (Math.abs(value1) <= 180 && Math.abs(value2) <= 90) {
+                    return [value1, value2];
+                }
+                if (Math.abs(value1) > 100000 || Math.abs(value2) > 100000) {
+                    var converted = convert3857to4326(value2, value1);
+                    return [converted.lng, converted.lat];
+                }
+                return [value1, value2];
+            }
+            if (Array.isArray(coords)) {
+                return coords.map(function(item) {
+                    return normalizeCoordinates(item);
+                });
+            }
+            return coords;
+        }
+        if (feature.geometry.coordinates) {
+            feature.geometry.coordinates = normalizeCoordinates(feature.geometry.coordinates);
         }
     });
-    
-    mapLayers[layerType].addTo(map);
-    
-    if (isClustering && clusterGroup) {
-        clusterGroup.addTo(map);
-    } else if (geojsonLayer) {
-        geojsonLayer.addTo(map);
+    return normalized;
+}
+
+// ============================================
+// PARSE COORDINATES - AUTO DETECT FORMAT
+// ============================================
+function parseCoordinates(text) {
+    if (!text || typeof text !== 'string') return null;
+    var lines = text.trim().split('\n');
+    var storageCoords = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line === '') continue;
+        var parts = line.split(',');
+        if (parts.length === 2) {
+            var val1 = parseFloat(parts[0].trim());
+            var val2 = parseFloat(parts[1].trim());
+            if (!isNaN(val1) && !isNaN(val2)) {
+                if (Math.abs(val1) > 100000 || Math.abs(val2) > 100000) {
+                    var converted = convert3857to4326(val1, val2);
+                    storageCoords.push([converted.lng, converted.lat]);
+                    console.log('🔄 Converted 3857 → 4326:', val1 + ',' + val2, '→', converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6));
+                } else {
+                    storageCoords.push([val2, val1]);
+                }
+            }
+        }
+    }
+    return storageCoords.length > 0 ? storageCoords : null;
+}
+
+// ============================================
+// FORMAT COORDINATES FOR DISPLAY
+// ============================================
+function formatCoordinatesForDisplay(coords) {
+    if (!coords || !Array.isArray(coords) || coords.length === 0) return '';
+    var lines = coords.map(function(p) {
+        if (Array.isArray(p) && p.length === 2) {
+            var value1 = parseFloat(p[0]);
+            var value2 = parseFloat(p[1]);
+            if (Math.abs(value1) > 100000 || Math.abs(value2) > 100000) {
+                var converted = convert3857to4326(value2, value1);
+                return converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6);
+            }
+            return value2.toFixed(6) + ',' + value1.toFixed(6);
+        }
+        return '';
+    });
+    return lines.join('\n');
+}
+
+// ============================================
+// AUTO-DETECT LOCATION FROM COORDINATES
+// ============================================
+function detectLocation(lat, lng) {
+    var locations = [
+        { name: 'Salem, Tamil Nadu', latMin: 11.5, latMax: 11.8, lngMin: 78.0, lngMax: 78.3 },
+        { name: 'Delhi, NCT', latMin: 28.4, latMax: 28.9, lngMin: 76.8, lngMax: 77.4 },
+        { name: 'Chennai, Tamil Nadu', latMin: 12.9, latMax: 13.2, lngMin: 80.1, lngMax: 80.3 },
+        { name: 'Mumbai, Maharashtra', latMin: 18.9, latMax: 19.2, lngMin: 72.8, lngMax: 72.9 },
+        { name: 'Bangalore, Karnataka', latMin: 12.9, latMax: 13.1, lngMin: 77.5, lngMax: 77.7 },
+        { name: 'Hyderabad, Telangana', latMin: 17.3, latMax: 17.5, lngMin: 78.3, lngMax: 78.5 },
+        { name: 'Kolkata, West Bengal', latMin: 22.5, latMax: 22.6, lngMin: 88.3, lngMax: 88.4 }
+    ];
+    for (var i = 0; i < locations.length; i++) {
+        var loc = locations[i];
+        if (lat >= loc.latMin && lat <= loc.latMax && lng >= loc.lngMin && lng <= loc.lngMax) {
+            return loc.name;
+        }
+    }
+    return 'Unknown Location';
+}
+
+// ============================================
+// GET MAP CENTER LAT/LONG
+// ============================================
+function getMapCenterLatLong() {
+    if (!map) return null;
+    var center3857 = map.getView().getCenter();
+    var center4326 = ol.proj.transform(center3857, 'EPSG:3857', 'EPSG:4326');
+    return { latitude: center4326[1], longitude: center4326[0] };
+}
+
+// ============================================
+// SHOW MAP CENTER
+// ============================================
+function showMapCenter() {
+    var center = getMapCenterLatLong();
+    if (center) {
+        var msg = '📍 Map Center: Lat ' + center.latitude.toFixed(6) + ', Lng ' + center.longitude.toFixed(6);
+        showToast(msg, 'info');
+        console.log(msg);
+        safeSetText('hoverLat', center.latitude.toFixed(6));
+        safeSetText('hoverLng', center.longitude.toFixed(6));
+        safeSetText('hoverLocation', detectLocation(center.latitude, center.longitude));
     }
 }
 
+// ============================================
+// CHANGE MAP LAYER
+// ============================================
+function changeMapLayer() {
+    if (!map) return;
+    var type = document.getElementById('mapLayer').value;
+    var layers = map.getLayers();
+    var toRemove = [];
+    layers.forEach(function(layer) {
+        if (layer instanceof ol.layer.Tile) {
+            toRemove.push(layer);
+        }
+    });
+    toRemove.forEach(function(layer) {
+        map.removeLayer(layer);
+    });
+    var source;
+    switch(type) {
+        case 'satellite':
+            source = new ol.source.XYZ({
+                url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                maxZoom: 20
+            });
+            break;
+        case 'dark':
+            source = new ol.source.XYZ({
+                url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                maxZoom: 19,
+                subdomains: ['a', 'b', 'c', 'd']
+            });
+            break;
+        case 'light':
+            source = new ol.source.OSM({
+                maxZoom: 19
+            });
+            break;
+        default:
+            source = new ol.source.OSM({
+                maxZoom: 19
+            });
+    }
+    var tileLayer = new ol.layer.Tile({ 
+        source: source,
+        zIndex: 0
+    });
+    map.addLayer(tileLayer);
+    if (vectorLayer) {
+        map.removeLayer(vectorLayer);
+        vectorLayer.setZIndex(1);
+        map.addLayer(vectorLayer);
+    }
+    map.render();
+    console.log('✅ Layer changed to:', type);
+}
+
+// ============================================
+// RESET MAP VIEW
+// ============================================
 function resetMapView() {
+    if (!map) return;
     document.getElementById('mapLayer').value = 'satellite';
     changeMapLayer();
-    fitBounds();
+    // Use EPSG:3857 coordinates directly - these are the Web Mercator values for Salem
+    var center3857 = ol.proj.transform([78.1636, 11.6546], 'EPSG:4326', 'EPSG:3857');
+    map.getView().setCenter(center3857);
+    map.getView().setZoom(16);
+    showToast('📍 Map view reset', 'info');
 }
 
-function toggleClustering() {
-    isClustering = !isClustering;
-    var btn = document.getElementById('clusterToggle');
-    
-    if (geojsonLayer && currentData) {
-        var data = currentData;
-        
-        if (geojsonLayer) {
-            map.removeLayer(geojsonLayer);
-            geojsonLayer = null;
-        }
-        if (clusterGroup) {
-            map.removeLayer(clusterGroup);
-            clusterGroup = null;
-        }
-     
-
-renderGeoJSON(data);
-        btn.innerHTML = isClustering ? '<i class="fas fa-object-ungroup"></i> Uncluster' : '<i class="fas fa-object-group"></i> Cluster';
-    }
+// ============================================
+// REFRESH DATA
+// ============================================
+function refreshData() {
+    showToast('Refreshing...', 'info');
+    loadBuildings();
 }
 
-function filterByCorporation() {
-   if (!originalData) {
-        alert('No data loaded yet!');
+// ============================================
+// COLORS FOR CORPORATIONS
+// ============================================
+{% for stat in corporation_stats %}
+corpColors['{{ stat.name }}'] = '{% cycle "#3498db" "#e67e22" "#2ecc71" "#9b59b6" "#1abc9c" "#e74c3c" "#f39c12" "#2ecc71" "#3498db" "#9b59b6" %}';
+{% endfor %}
+
+function getCorporationColor(name) {
+    return corpColors[name] || '#9b59b6';
+}
+
+function loadBuildings() {
+    var url = '/buildings-geojson/';
+    fetch(url)
+        .then(function(response) { 
+            if (!response.ok) throw new Error('Failed to load buildings');
+            return response.json(); 
+        })
+        .then(function(data) {
+            // Debug the GeoJSON
+            // debugGeoJSON(data);
+            
+            if (data.features && data.features.length > 0) {
+                buildingData = data;
+                renderBuildings(data);
+                console.log('✅ Loaded ' + data.features.length + ' buildings');
+                var activeCount = data.features.filter(function(f) { 
+                    return f.properties && f.properties.is_active !== false; 
+                }).length;
+                safeSetText('activeBuildings', activeCount || data.features.length);
+            } else {
+                console.log('ℹ️ No buildings found');
+                if (vectorSource) vectorSource.clear();
+            }
+        })
+        .catch(function(error) {
+            console.error('Error loading buildings:', error);
+            showToast('Error loading buildings: ' + error.message, 'error');
+        });
+}
+
+// ============================================
+// RENDER BUILDINGS - COMPLETE FIXED VERSION
+// ============================================
+function renderBuildings(geojson) {
+    if (!geojson || !geojson.features || !vectorSource) {
+        console.warn('No GeoJSON data or vectorSource not ready');
         return;
     }
-    
-    var corpNames = [...new Set(
-    originalData.features
-        .map(f => f.properties.corporation)
-        .filter(Boolean)
-)].sort();
-    var options = corpNames.map(name => `<option value="${name}">${name}</option>`).join('');
-    
-    var filterHtml = `
-        <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:30px;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.3);z-index:9999;min-width:300px;max-width:90%;">
-            <h3 style="margin-top:0;color:#0f3b5e;">Filter by Corporation</h3>
-            <select id="filterSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid #dce1e8;margin:10px 0 20px 0;">
-                <option value="all">All Corporations</option>
-                ${options}
+
+    console.log('📊 Rendering ' + geojson.features.length + ' buildings');
+
+    vectorSource.clear();
+
+    /*
+     * YOUR MAP REMAINS EPSG:3857.
+     *
+     * Client building coordinates arrive as:
+     *     [1306xxx, 8701xxx]
+     *
+     * For this dataset, the values are reversed relative to
+     * the EPSG:3857 X,Y order required by OpenLayers:
+     *     X = 8701xxx
+     *     Y = 1306xxx
+     *
+     * We therefore:
+     *   1. Read the client coordinates as raw EPSG:3857 values.
+     *   2. Swap the coordinate pair in the OpenLayers geometry.
+     *   3. Keep the resulting geometry in EPSG:3857.
+     *
+     * The original GeoJSON object is never modified.
+     */
+
+    var format = new ol.format.GeoJSON();
+    var features;
+
+    try {
+        features = format.readFeatures(geojson, {
+            dataProjection: 'EPSG:3857',
+            featureProjection: 'EPSG:3857'
+        });
+    } catch (e) {
+        console.error('Error reading GeoJSON:', e);
+        return;
+    }
+
+    if (!features || features.length === 0) {
+        console.warn('No features found in GeoJSON');
+        return;
+    }
+
+    /*
+     * Swap coordinates recursively on the OpenLayers geometry.
+     * This works for Polygon, MultiPolygon, LineString, etc.
+     */
+    function swapCoordinateTree(coords) {
+        if (!Array.isArray(coords)) {
+            return coords;
+        }
+
+        if (
+            coords.length >= 2 &&
+            typeof coords[0] === 'number' &&
+            typeof coords[1] === 'number'
+        ) {
+            var swapped = coords.slice();
+            swapped[0] = coords[1];
+            swapped[1] = coords[0];
+            return swapped;
+        }
+
+        return coords.map(function(item) {
+            return swapCoordinateTree(item);
+        });
+    }
+
+    features.forEach(function(feature, index) {
+        var geometry = feature.getGeometry();
+
+        if (!geometry) {
+            return;
+        }
+
+        var correctedGeometry = geometry.clone();
+
+        correctedGeometry.setCoordinates(
+            swapCoordinateTree(correctedGeometry.getCoordinates())
+        );
+
+        feature.setGeometry(correctedGeometry);
+
+        var props = feature.getProperties();
+        var color = getCorporationColor(
+            props.corporation || ''
+        );
+
+        feature.setStyle(
+            new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: color + '33'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: color,
+                    width: 3
+                }),
+                zIndex: 1
+            })
+        );
+
+        feature.set(
+            'buildingId',
+            props.id || props.OBJECTID || props.GIS_ID
+        );
+
+        feature.set(
+            'gisId',
+            props.gis_id || props.GIS_ID
+        );
+
+        feature.set(
+            'buildingName',
+            props.building_name || props.name || 'Unnamed'
+        );
+
+        feature.set(
+            'corporation',
+            props.corporation || 'Unknown'
+        );
+
+        feature.set(
+            'area',
+            props.area || props.sqft || 0
+        );
+
+        feature.set(
+            'buildingType',
+            props.building_type || 'Other'
+        );
+
+        if (index === 0) {
+            console.log(
+                '🔄 First building geometry corrected from [Y,X] to [X,Y]'
+            );
+        }
+    });
+
+    vectorSource.addFeatures(features);
+
+    /*
+     * IMPORTANT:
+     * Do NOT fit the map to all 2,568 buildings here.
+     *
+     * The map starts at your known-good Salem EPSG:3857 view.
+     * Individual buildings can be fitted by zoomToBuilding().
+     */
+    map.render();
+
+    console.log(
+        '✅ Rendered ' + features.length +
+        ' buildings with corrected EPSG:3857 coordinates'
+    );
+}
+
+function renderBuildingsWithoutFit(geojson) {
+    if (!geojson || !geojson.features || !vectorSource) {
+        return;
+    }
+
+    vectorSource.clear();
+
+    var format = new ol.format.GeoJSON();
+    var features;
+
+    try {
+        features = format.readFeatures(geojson, {
+            dataProjection: 'EPSG:3857',
+            featureProjection: 'EPSG:3857'
+        });
+    } catch (e) {
+        console.error('Error reading GeoJSON:', e);
+        return;
+    }
+
+    function swapCoordinateTree(coords) {
+        if (!Array.isArray(coords)) {
+            return coords;
+        }
+
+        if (
+            coords.length >= 2 &&
+            typeof coords[0] === 'number' &&
+            typeof coords[1] === 'number'
+        ) {
+            var swapped = coords.slice();
+            swapped[0] = coords[1];
+            swapped[1] = coords[0];
+            return swapped;
+        }
+
+        return coords.map(function(item) {
+            return swapCoordinateTree(item);
+        });
+    }
+
+    features.forEach(function(feature) {
+        var geometry = feature.getGeometry();
+
+        if (!geometry) {
+            return;
+        }
+
+        var correctedGeometry = geometry.clone();
+
+        correctedGeometry.setCoordinates(
+            swapCoordinateTree(correctedGeometry.getCoordinates())
+        );
+
+        feature.setGeometry(correctedGeometry);
+
+        var props = feature.getProperties();
+        var color = getCorporationColor(
+            props.corporation || ''
+        );
+
+        feature.setStyle(
+            new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: color + '33'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: color,
+                    width: 3
+                })
+            })
+        );
+
+        feature.set(
+            'buildingId',
+            props.id || props.OBJECTID || props.GIS_ID
+        );
+
+        feature.set(
+            'gisId',
+            props.gis_id || props.GIS_ID
+        );
+
+        feature.set(
+            'buildingName',
+            props.building_name || props.name || 'Unnamed'
+        );
+
+        feature.set(
+            'corporation',
+            props.corporation || 'Unknown'
+        );
+
+        feature.set(
+            'area',
+            props.area || props.sqft || 0
+        );
+
+        feature.set(
+            'buildingType',
+            props.building_type || 'Other'
+        );
+    });
+
+    vectorSource.addFeatures(features);
+    map.render();
+
+    console.log(
+        '✅ Rendered ' + features.length +
+        ' buildings without changing the current map view'
+    );
+}
+
+// ============================================
+// ENABLE DRAW MODE
+// ============================================
+function enableDrawMode() {
+    if (!map || !vectorSource) {
+        showToast('❌ Map not ready', 'error');
+        return;
+    }
+    if (isDrawing) {
+        showToast('⚠️ Already drawing! Double-click to finish.', 'warning');
+        return;
+    }
+    isDrawing = true;
+    currentPolygonCoords = [];
+    var drawBtn = document.getElementById('drawBtn');
+    var cancelBtn = document.getElementById('cancelDrawBtn');
+    if (drawBtn) drawBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+    showToast('✏️ Click on the map to add points. Double-click to finish.', 'info');
+    drawInteraction = new ol.interaction.Draw({
+        source: vectorSource,
+        type: 'Polygon',
+        style: new ol.style.Style({
+            fill: new ol.style.Fill({ color: 'rgba(99, 102, 241, 0.15)' }),
+            stroke: new ol.style.Stroke({ color: '#6366f1', width: 3, lineDash: [5, 5] })
+        })
+    });
+    drawInteraction.on('drawend', function(event) {
+        finishDrawing(event);
+    });
+    map.addInteraction(drawInteraction);
+}
+
+// ============================================
+// FINISH DRAWING
+// ============================================
+function finishDrawing(event) {
+    var feature = event.feature;
+    var geometry = feature.getGeometry();
+    var coords = geometry.getCoordinates()[0];
+    var formattedCoords = coords.map(function(c) {
+        var transformed = ol.proj.transform(c, 'EPSG:3857', 'EPSG:4326');
+        return [transformed[0], transformed[1]];
+    });
+    var centerLat = 0;
+    var centerLng = 0;
+    formattedCoords.forEach(function(p) {
+        centerLat += p[1];
+        centerLng += p[0];
+    });
+    centerLat = centerLat / formattedCoords.length;
+    centerLng = centerLng / formattedCoords.length;
+    var locationName = detectLocation(centerLat, centerLng);
+    console.log('📍 Drawing at:', locationName);
+    currentPolygonCoords = formattedCoords;
+    map.removeInteraction(drawInteraction);
+    drawInteraction = null;
+    isDrawing = false;
+    var drawBtn = document.getElementById('drawBtn');
+    var cancelBtn = document.getElementById('cancelDrawBtn');
+    if (drawBtn) drawBtn.style.display = 'inline-flex';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    feature.setStyle(new ol.style.Style({
+        fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.12)' }),
+        stroke: new ol.style.Stroke({ color: '#10b981', width: 4 })
+    }));
+    openBuildingFormModal(formattedCoords, locationName);
+    showToast('✅ Polygon drawn at ' + locationName + '!', 'success');
+}
+
+// ============================================
+// CANCEL DRAWING
+// ============================================
+function cancelDrawing() {
+    if (drawInteraction) {
+        map.removeInteraction(drawInteraction);
+        drawInteraction = null;
+    }
+    isDrawing = false;
+    currentPolygonCoords = [];
+    var drawBtn = document.getElementById('drawBtn');
+    var cancelBtn = document.getElementById('cancelDrawBtn');
+    if (drawBtn) drawBtn.style.display = 'inline-flex';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    showToast('❌ Drawing cancelled', 'warning');
+}
+
+// ============================================
+// CLEAR ALL FEATURES
+// ============================================
+function clearAllFeatures() {
+    if (confirm('⚠️ Clear all drawn features?')) {
+        if (vectorSource) vectorSource.clear();
+        showToast('🧹 All features cleared', 'info');
+    }
+}
+
+// ============================================
+// OPEN BUILDING FORM MODAL
+// ============================================
+function openBuildingFormModal(coords, locationName) {
+    safeSetText('modalTitle', '🏗️ Add New Building');
+    safeSetText('modalSubtitle', '📍 ' + (locationName || 'Unknown Location'));
+    safeSetValue('buildingId', '');
+    safeSetText('displayBuildingId', '#NEW');
+    var form = document.getElementById('buildingForm');
+    if (form) form.reset();
+    var displayText = '';
+    if (coords && Array.isArray(coords)) {
+        var lines = coords.map(function(p) {
+            if (Array.isArray(p) && p.length === 2) {
+                var x = parseFloat(p[0]);
+                var y = parseFloat(p[1]);
+                if (Math.abs(x) > 100000 || Math.abs(y) > 100000) {
+                    var converted = convert3857to4326(x, y);
+                    return converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6);
+                } else {
+                    return y.toFixed(6) + ',' + x.toFixed(6);
+                }
+            }
+            return '';
+        });
+        displayText = lines.join('\n');
+    }
+    safeSetValue('geometryCoords', displayText);
+    var deleteBtn = document.getElementById('deleteBuildingBtn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    var statusDiv = document.getElementById('formStatus');
+    if (statusDiv) statusDiv.style.display = 'none';
+    safeSetValue('gisId', '');
+    safeSetValue('buildingName', '');
+    safeSetValue('buildingType', 'RESIDENTIAL');
+    safeSetValue('floors', '');
+    safeSetValue('area', '');
+    safeSetValue('corporation', '');
+    safeSetValue('ward', '');
+    safeSetValue('ownerName', '');
+    safeSetValue('ownerContact', '');
+    if (locationName && locationName !== 'Unknown Location') {
+        var cityParts = locationName.split(',');
+        safeSetValue('city', cityParts[0] || '');
+        safeSetValue('state', cityParts[1] || '');
+    } else {
+        safeSetValue('city', '');
+        safeSetValue('state', '');
+    }
+    $('#buildingModal').modal('show');
+}
+
+// ============================================
+// LOAD BUILDING FOR EDIT
+// ============================================
+function loadBuildingForEdit(id) {
+    console.log('Loading building for edit:', id);
+    showToast('Loading building data...', 'info');
+    fetch('/api/buildings/' + id + '/')
+    .then(function(response) {
+        if (!response.ok) throw new Error('Building not found');
+        return response.json();
+    })
+    .then(function(data) {
+        console.log('Building data loaded:', data);
+        safeSetText('modalTitle', '✏️ Edit Building');
+        safeSetText('modalSubtitle', 'Update building information');
+        safeSetText('displayBuildingId', '#' + data.id + ' - ' + (data.gis_id || 'N/A'));
+        safeSetValue('buildingId', data.id);
+        safeSetValue('gisId', data.gis_id || '');
+        safeSetValue('buildingName', data.building_name || '');
+        safeSetValue('buildingType', data.building_type || 'OTHER');
+        safeSetValue('floors', data.floors || '');
+        safeSetValue('area', data.area || '');
+        safeSetValue('corporation', data.corporation || '');
+        safeSetValue('ward', data.ward || '');
+        safeSetValue('ownerName', data.owner_name || '');
+        safeSetValue('ownerContact', data.owner_contact || '');
+        safeSetValue('city', data.city || '');
+        safeSetValue('state', data.state || '');
+        if (data.geometry) {
+            var coords = null;
+            if (data.geometry.coordinates) {
+                coords = data.geometry.coordinates[0];
+            } else if (data.geometry.geojson) {
+                var geom = JSON.parse(data.geometry.geojson);
+                coords = geom.coordinates[0];
+            }
+            if (coords && Array.isArray(coords) && coords.length > 0) {
+                var lines = coords.map(function(p) {
+                    if (Array.isArray(p) && p.length === 2) {
+                        var lat = parseFloat(p[1]).toFixed(6);
+                        var lng = parseFloat(p[0]).toFixed(6);
+                        return lat + ',' + lng;
+                    }
+                    return '';
+                });
+                safeSetValue('geometryCoords', lines.join('\n'));
+            } else {
+                safeSetValue('geometryCoords', '');
+            }
+        } else {
+            safeSetValue('geometryCoords', '');
+        }
+        var deleteBtn = document.getElementById('deleteBuildingBtn');
+        if (deleteBtn) {
+            deleteBtn.style.display = 'inline-flex';
+            deleteBtn.onclick = function() {
+                if (confirm('Delete this building?')) {
+                    deleteBuilding(data.id);
+                }
+            };
+        }
+        var statusDiv = document.getElementById('formStatus');
+        if (statusDiv) {
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'form-status info';
+            statusDiv.innerHTML = '📝 <span>Building loaded. Make changes and click Save.</span>';
+        }
+        $('#buildingModal').modal('show');
+    })
+    .catch(function(error) {
+        console.error('Error loading building:', error);
+        showToast('Error loading building: ' + error.message, 'error');
+    });
+}
+
+// ============================================
+// DELETE BUILDING
+// ============================================
+function deleteBuilding(id) {
+    if (!confirm('Are you sure you want to delete this building?')) { return; }
+    var savedLat = 28.6139;
+    var savedLng = 77.2090;
+    var savedZoom = 12;
+    if (map) {
+        var view = map.getView();
+        var center = view.getCenter();
+        var zoom = view.getZoom();
+        var lonLat = ol.proj.transform(center, 'EPSG:3857', 'EPSG:4326');
+        savedLat = lonLat[1];
+        savedLng = lonLat[0];
+        savedZoom = zoom;
+        window._savedMapPosition = {
+            lat: savedLat,
+            lng: savedLng,
+            zoom: savedZoom
+        };
+    }
+    showToast('Deleting building...', 'warning');
+    fetch('/api/buildings/' + id + '/', {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCSRFToken(),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            return response.json().then(function(err) { throw err; });
+        }
+        return response.json();
+    })
+    .then(function(data) {
+        if (data.status === 'success') {
+            showToast('✅ Building deleted successfully!', 'success');
+            $('#buildingModal').modal('hide');
+            loadBuildingsWithoutFit();
+        } else {
+            showToast('Error: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(function(error) {
+        console.error('Delete error:', error);
+        showToast('Error deleting: ' + (error.error || error.message || 'Unknown error'), 'error');
+    });
+}
+
+// ============================================
+// LOAD BUILDINGS WITHOUT FITTING MAP
+// ============================================
+function loadBuildingsWithoutFit() {
+    var url = '/buildings-geojson/';
+    window._skipMapFit = true;
+    fetch(url)
+        .then(function(response) { 
+            if (!response.ok) throw new Error('Failed to load buildings');
+            return response.json(); 
+        })
+        .then(function(data) {
+            if (data.features && data.features.length > 0) {
+                buildingData = data;
+                renderBuildingsWithoutFit(data);
+                console.log('✅ Reloaded ' + data.features.length + ' buildings');
+            } else {
+                console.log('ℹ️ No buildings found');
+                if (vectorSource) vectorSource.clear();
+            }
+            if (window._savedMapPosition) {
+                var pos = window._savedMapPosition;
+                var center = ol.proj.transform([pos.lng, pos.lat], 'EPSG:4326', 'EPSG:3857');
+                map.getView().setCenter(center);
+                map.getView().setZoom(pos.zoom);
+                window._savedMapPosition = null;
+            }
+        })
+        .catch(function(error) {
+            console.error('Error loading buildings:', error);
+            showToast('Error loading buildings: ' + error.message, 'error');
+        });
+}
+
+// ============================================
+// FILTER BY CORPORATION
+// ============================================
+function filterByCorporation() {
+    if (!buildingData.features || buildingData.features.length === 0) {
+        showToast('No data loaded', 'warning');
+        return;
+    }
+    var corps = [];
+    var seen = {};
+    buildingData.features.forEach(function(f) {
+        var name = f.properties.corporation;
+        if (name && !seen[name]) {
+            seen[name] = true;
+            corps.push(name);
+        }
+    });
+    corps.sort();
+    if (corps.length === 0) {
+        showToast('No corporations found', 'warning');
+        return;
+    }
+    var html = `
+        <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:25px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);z-index:9999;min-width:320px;max-width:90%;">
+            <h3 style="margin-top:0;color:#0f3b5e;">
+                <i class="fas fa-filter" style="color:#1a8a7a;"></i> Filter by Corporation
+            </h3>
+            <select id="filterSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid #dce1e8;margin:10px 0;font-size:0.95rem;">
+                <option value="all">🏢 All Buildings (${buildingData.features.length})</option>
+                ${corps.map(function(c) { return '<option value="' + c + '">🏛️ ' + c + '</option>'; }).join('')}
             </select>
-            <div style="display:flex;gap:10px;">
-                <button onclick="applyFilter()" style="flex:1;padding:10px;background:#1a8a7a;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
-                    Apply
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button onclick="applyFilter()" style="flex:1;padding:10px;background:linear-gradient(135deg, #1a8a7a, #2eccb0);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
+                    <i class="fas fa-check"></i> Apply
                 </button>
                 <button onclick="closeFilter()" style="flex:1;padding:10px;background:#e74c3c;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
-                    Cancel
+                    <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
         </div>
         <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9998;" onclick="closeFilter()"></div>
     `;
-    
-    var existingFilter = document.getElementById('filterModal');
-    if (existingFilter) {
-        existingFilter.remove();
-    }
-    
+    var existing = document.getElementById('filterModal');
+    if (existing) existing.remove();
     var modal = document.createElement('div');
     modal.id = 'filterModal';
-    modal.innerHTML = filterHtml;
+    modal.innerHTML = html;
     document.body.appendChild(modal);
 }
 
 function applyFilter() {
-    // Get the selected value BEFORE closing the filter
     var selected = document.getElementById('filterSelect').value;
-    
-    // Close the filter AFTER getting the value
     closeFilter();
-    
-    if (!originalData) return;
-    
-    var filteredFeatures = selected === 'all'
-    ? originalData.features
-    : originalData.features.filter(
-        f => f.properties.corporation === selected
-    );
-    
-    var filteredGeoJSON = {
-        type: "FeatureCollection",
-        features: filteredFeatures
-    };
-    
-    // Remove existing layers
-    if (geojsonLayer) {
-        map.removeLayer(geojsonLayer);
-        geojsonLayer = null;
-    }
-    if (clusterGroup) {
-        map.removeLayer(clusterGroup);
-        clusterGroup = null;
-    }
-    
-    renderGeoJSON(filteredGeoJSON);
-    
-    // Update count - check if the element exists first
-    var headerElement = document.querySelector('.premium-header p');
-    if (headerElement) {
-        headerElement.textContent = 
-            `Showing ${filteredFeatures.length} buildings from ${selected === 'all' ? 'all corporations' : selected}`;
-    }
-    
-    // Optional: Fit map to show all filtered features
-    if (filteredFeatures.length > 0) {
-        try {
-            var bounds = L.latLngBounds(filteredFeatures.map(f => {
-                var coords = f.geometry.coordinates;
-                return [coords[1], coords[0]];
-            }));
-            map.fitBounds(bounds, { padding: [50, 50] });
-        } catch(e) {
-            console.warn('Could not fit bounds:', e);
-        }
-    }
+    var filteredFeatures = selected === 'all' 
+        ? buildingData.features 
+        : buildingData.features.filter(function(f) { return f.properties.corporation === selected; });
+    var geojson = { type: "FeatureCollection", features: filteredFeatures };
+    renderBuildings(geojson);
+    showToast('Showing ' + filteredFeatures.length + ' buildings', 'info');
 }
 
 function closeFilter() {
     var modal = document.getElementById('filterModal');
-    if (modal) {
-        modal.remove();
+    if (modal) modal.remove();
+}
+
+// ============================================
+// FIND GIS ID FUNCTIONS
+// ============================================
+function openFindGisModal() {
+    var resultDiv = document.getElementById('findGisResult');
+    if (resultDiv) resultDiv.style.display = 'none';
+    var input = document.getElementById('findGisInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    $('#findGisModal').modal('show');
+    var findBtn = document.getElementById('findGisBtn');
+    if (findBtn) {
+        findBtn.onclick = function() {
+            performGISSearch();
+        };
+    }
+    if (input) {
+        input.onkeypress = function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performGISSearch();
+            }
+        };
     }
 }
 
-// Initialize map when DOM is ready
+function performGISSearch() {
+    var gisId = document.getElementById('findGisInput').value.trim();
+    var resultDiv = document.getElementById('findGisResult');
+    if (!gisId) {
+        if (resultDiv) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'form-status error';
+            resultDiv.innerHTML = '⚠️ <span>Please enter a GIS ID.</span>';
+        }
+        return;
+    }
+    if (resultDiv) {
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'form-status info';
+        resultDiv.innerHTML = '⏳ <span>Searching for property...</span>';
+    }
+    var searchUrl = '/api/building-search/?gis_id=' + encodeURIComponent(gisId);
+    fetch(searchUrl)
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        console.log('Search response:', data);
+        if (data.error) throw new Error(data.error);
+        if (data.results && data.results.length > 0) {
+            displayBuildingResult(data.results[0], gisId);
+        } else {
+            displayNotFoundResult(gisId);
+        }
+    })
+    .catch(function(error) {
+        console.error('Search error:', error);
+        if (resultDiv) {
+            resultDiv.className = 'form-status error';
+            resultDiv.innerHTML = '❌ <span>Error: ' + error.message + '</span>';
+        }
+        showToast('Error searching for property', 'error');
+    });
+}
+
+function displayBuildingResult(building, gisId) {
+    var resultDiv = document.getElementById('findGisResult');
+    window._foundBuildingData = building;
+    if (building.geometry && building.geometry.coordinates) {
+        window._foundBuildingCoords = building.geometry.coordinates;
+    }
+    var badgeClass = 'bg-secondary';
+    var typeDisplay = building.building_type || 'Other';
+    if (typeDisplay === 'RESIDENTIAL') badgeClass = 'bg-info';
+    else if (typeDisplay === 'COMMERCIAL') badgeClass = 'bg-warning text-dark';
+    else if (typeDisplay === 'INDUSTRIAL') badgeClass = 'bg-secondary';
+    else if (typeDisplay === 'GOVERNMENT') badgeClass = 'bg-primary';
+    else if (typeDisplay === 'MIXED_USE') badgeClass = 'bg-success';
+    var statusBadge = building.is_active ? 'bg-success' : 'bg-danger';
+    var statusText = building.is_active ? 'Active' : 'Inactive';
+    var coordDisplay = 'No location data';
+    if (building.geometry && building.geometry.coordinates) {
+        var coords = building.geometry.coordinates;
+        if (Array.isArray(coords) && coords.length >= 2) {
+            coordDisplay = 'Lat: ' + parseFloat(coords[1]).toFixed(6) + ', Lng: ' + parseFloat(coords[0]).toFixed(6);
+        }
+    }
+    if (resultDiv) {
+        resultDiv.className = 'form-status success';
+        resultDiv.innerHTML = `
+            <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                    <strong style="font-size:1.1rem; color:#1a8a7a;">
+                        <i class="fas fa-check-circle"></i> Property Found!
+                    </strong>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button onclick="zoomToBuilding()" class="btn btn-sm btn-primary" style="padding:4px 12px;background:#1a8a7a;border:none;border-radius:6px;color:white;cursor:pointer;">
+                            <i class="fas fa-location-arrow"></i> Locate on Map
+                        </button>
+                        <button onclick="closeFindGisModal()" class="btn btn-sm btn-secondary" style="padding:4px 12px;background:#6c757d;border:none;border-radius:6px;color:white;cursor:pointer;">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:0.85rem;">
+                    <div><strong>GIS ID:</strong> <span style="color:#1a8a7a;font-weight:bold;">${building.gis_id}</span></div>
+                    <div><strong>Building:</strong> ${building.building_name || 'Unnamed'}</div>
+                    <div><strong>Type:</strong> <span class="badge ${badgeClass}" style="padding:2px 8px;border-radius:4px;color:white;">${typeDisplay}</span></div>
+                    <div><strong>Ward:</strong> ${building.ward || 'N/A'}</div>
+                    <div><strong>Corporation:</strong> ${building.corporation || 'N/A'}</div>
+                    <div><strong>Owner:</strong> ${building.owner_name || 'Unknown'}</div>
+                    <div><strong>Area:</strong> ${building.area || '0'} sqft</div>
+                    <div><strong>Status:</strong> <span class="badge ${statusBadge}" style="padding:2px 8px;border-radius:4px;color:white;">${statusText}</span></div>
+                </div>
+                <div style="margin-top:8px;font-size:0.8rem;color:#2c3e50;border-top:1px solid #eef2f6;padding-top:8px;">
+                    <i class="fas fa-map-pin" style="color:#e74c3c;"></i> 
+                    <strong>Location:</strong> ${coordDisplay}
+                </div>
+            </div>
+        `;
+        resultDiv.style.display = 'block';
+    }
+    showToast('✅ Property found: ' + (building.building_name || building.gis_id), 'success');
+}
+
+function displayNotFoundResult(gisId) {
+    var resultDiv = document.getElementById('findGisResult');
+    if (resultDiv) {
+        resultDiv.className = 'form-status error';
+        resultDiv.innerHTML = `
+            <div style="width:100%;">
+                <strong><i class="fas fa-exclamation-circle"></i> Property Not Found</strong>
+                <p style="margin:6px 0 8px;">No property exists with GIS ID: <strong style="color:#e74c3c;">${gisId}</strong></p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                    <button onclick="document.getElementById('findGisInput').focus();" class="btn btn-sm btn-outline-secondary" style="padding:4px 12px;border:1px solid #6c757d;border-radius:4px;background:white;cursor:pointer;">
+                        <i class="fas fa-search"></i> Try Again
+                    </button>
+                    <button onclick="document.getElementById('findGisInput').value=''; document.getElementById('findGisResult').style.display='none';" class="btn btn-sm btn-secondary" style="padding:4px 12px;background:#6c757d;border:none;border-radius:4px;color:white;cursor:pointer;">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        `;
+        resultDiv.style.display = 'block';
+    }
+    showToast('❌ No property found with GIS ID: ' + gisId, 'error');
+}
+
+function zoomToBuilding() {
+    var building = window._foundBuildingData;
+    if (!building) {
+        showToast('❌ No building data to locate', 'error');
+        return;
+    }
+    closeFindGisModal();
+    if (!vectorSource) {
+        showToast('⚠️ Building layer is not ready', 'warning');
+        return;
+    }
+    var gisId = String(building.gis_id || building.GIS_ID || building.id || '');
+    if (!gisId) {
+        showToast('⚠️ Building GIS ID is missing', 'warning');
+        return;
+    }
+    var feature = vectorSource.getFeatures().find(function(f) {
+        return String(f.get('gisId') || f.get('gis_id') || f.get('GIS_ID') || f.get('buildingId') || '') === gisId;
+    });
+    if (!feature) {
+        showToast('⚠️ Exact building polygon not found on the map', 'warning');
+        return;
+    }
+    var geometry = feature.getGeometry();
+    if (!geometry) {
+        showToast('⚠️ Building geometry not found', 'warning');
+        return;
+    }
+    var extent = geometry.getExtent();
+    map.getView().fit(extent, {
+        padding: [80, 80, 80, 80],
+        maxZoom: 20,
+        duration: 1000
+    });
+    showToast('📍 Zooming to: ' + gisId, 'success');
+}
+
+function closeFindGisModal() {
+    try {
+        $('#findGisModal').modal('hide');
+    } catch(e) {
+        var modal = document.getElementById('findGisModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            var backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) backdrop.remove();
+        }
+    }
+    var resultDiv = document.getElementById('findGisResult');
+    if (resultDiv) resultDiv.style.display = 'none';
+    var input = document.getElementById('findGisInput');
+    if (input) input.value = '';
+}
+
+// ============================================
+// SAVE BUILDING - WITH AUTO CONVERSION
+// ============================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if map container exists
-    var mapContainer = document.getElementById('map');
-    if (!mapContainer) {
+    var saveBtn = document.getElementById('saveBuilding');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var buildingId = document.getElementById('buildingId').value;
+            var isNew = !buildingId;
+            var formData = {
+                gis_id: document.getElementById('gisId').value || 'B-' + Date.now().toString(36).toUpperCase(),
+                building_name: document.getElementById('buildingName').value || 'Unnamed Building',
+                building_type: document.getElementById('buildingType').value || 'OTHER',
+                floors: parseInt(document.getElementById('floors').value) || 0,
+                area: parseFloat(document.getElementById('area').value) || 0,
+                corporation: document.getElementById('corporation').value || null,
+                ward: document.getElementById('ward').value || '',
+                owner_name: document.getElementById('ownerName').value || 'Unknown',
+                owner_contact: document.getElementById('ownerContact').value || '',
+                city: document.getElementById('city').value || '',
+                state: document.getElementById('state').value || '',
+                pincode: '000000'
+            };
+            var coordsText = document.getElementById('geometryCoords').value;
+            if (coordsText) {
+                var storageCoords = parseCoordinates(coordsText);
+                if (storageCoords && storageCoords.length > 0) {
+                    formData.geometry_coords = storageCoords;
+                    console.log('✅ Parsed coordinates (lng, lat):', storageCoords);
+                } else {
+                    showToast('Invalid coordinates format', 'error');
+                    return;
+                }
+            } else if (isNew) {
+                showToast('⚠️ Draw a polygon on the map first!', 'error');
+                return;
+            }
+            if (map) {
+                var view = map.getView();
+                var center = view.getCenter();
+                var zoom = view.getZoom();
+                var lonLat = ol.proj.transform(center, 'EPSG:3857', 'EPSG:4326');
+                window._savedMapPosition = {
+                    lat: lonLat[1],
+                    lng: lonLat[0],
+                    zoom: zoom
+                };
+            }
+            var url = isNew ? '/api/buildings/' : '/api/buildings/' + buildingId + '/';
+            var method = isNew ? 'POST' : 'PUT';
+            showToast(isNew ? 'Creating building...' : 'Updating building...', 'info');
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(err) { throw err; });
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                console.log('Save response:', data);
+                if (data.id || data.status === 'success') {
+                    showToast(isNew ? '✅ Building created!' : '✅ Building updated!', 'success');
+                    $('#buildingModal').modal('hide');
+                    loadBuildingsWithoutFit();
+                } else {
+                    showToast('Error: ' + JSON.stringify(data), 'error');
+                }
+            })
+            .catch(function(error) {
+                console.error('Save error:', error);
+                showToast('Error: ' + (error.error || error.message || 'Unknown error'), 'error');
+            });
+        });
+    }
+});
+
+// ============================================
+// INITIALIZATION - MAIN ENTRY POINT - WORLDWIDE
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.getElementById('map');
+    if (!container) {
         console.error('Map container not found!');
         return;
     }
     
-    // Initialize map
-    map = L.map('map', {
-        zoomControl: true,
-        center: [28.6139, 77.2090],
-        zoom: 12,
-    });
-
-    // Add default layer
-    mapLayers['satellite'].addTo(map);
-    map.zoomControl.setPosition('bottomright');
-
-    // Get data from Django template
     try {
-        var geojsonData = {{ geojson_data|safe }};
+        // Get the map center from Django context
+        var mapLat = parseFloat('{{ map_lat|default:11.6546 }}');
+        var mapLng = parseFloat('{{ map_lng|default:78.1636 }}');
+        var mapZoom = parseInt('{{ map_zoom|default:16 }}');
         
-        if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
-            console.log('✅ Data received:', geojsonData.features.length, 'buildings');
-            renderGeoJSON(geojsonData);
-        } else {
-            console.warn('⚠️ No data received or empty features');
-            showNoDataMessage();
+        // Validate coordinates
+        if (isNaN(mapLat) || isNaN(mapLng)) {
+            console.warn('Invalid map coordinates, using default (0,0)');
+            mapLat = 0;
+            mapLng = 0;
+            mapZoom = 2;
         }
+        
+        // Clamp latitude to valid range
+        if (mapLat < -90) mapLat = -90;
+        if (mapLat > 90) mapLat = 90;
+        
+        // Normalize longitude
+        while (mapLng < -180) mapLng += 360;
+        while (mapLng > 180) mapLng -= 360;
+        
+        console.log('📍 Map position (EPSG:4326):', mapLat, mapLng, 'Zoom:', mapZoom);
+        
+        // Convert EPSG:4326 to EPSG:3857
+        var center3857 = ol.proj.transform([mapLng, mapLat], 'EPSG:4326', 'EPSG:3857');
+        console.log('📍 Center in EPSG:3857:', center3857);
+        
+        // Verify the center is valid (should be within EPSG:3857 bounds)
+        // EPSG:3857 valid range: X: -20037508.34 to 20037508.34, Y: -20037508.34 to 20037508.34
+        if (center3857[0] < -20000000 || center3857[0] > 20000000 || 
+            center3857[1] < -20000000 || center3857[1] > 20000000) {
+            console.warn('Invalid EPSG:3857 coordinates, using (0,0)');
+            center3857 = [0, 0];
+            mapZoom = 2;
+        }
+        
+        var initialLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+                maxZoom: 20
+            }),
+            zIndex: 0
+        });
+        
+        // Add a fallback OSM layer if Google tiles fail
+        var fallbackLayer = new ol.layer.Tile({
+            source: new ol.source.OSM(),
+            zIndex: 0,
+            opacity: 0 // Hidden by default, will show if Google fails
+        });
+        
+        map = new ol.Map({
+            target: 'map',
+            layers: [initialLayer, fallbackLayer],
+            view: new ol.View({
+                center: center3857,
+                zoom: mapZoom,
+                projection: 'EPSG:3857'
+            })
+        });
+        
+        // Force render
+        map.render();
+        console.log('✅ OpenLayers map initialized successfully!');
+        
+        // Handle tile loading errors - show fallback layer
+        initialLayer.on('tileloaderror', function() {
+            console.warn('Google tiles failed to load, using OSM fallback');
+            initialLayer.setVisible(false);
+            fallbackLayer.setVisible(true);
+            fallbackLayer.setOpacity(1);
+            map.render();
+        });
+        
+        vectorSource = new ol.source.Vector();
+        vectorLayer = new ol.layer.Vector({
+            source: vectorSource,
+            zIndex: 1,
+            style: new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(99, 102, 241, 0.15)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: '#6366f1',
+                    width: 2
+                })
+            })
+        });
+        map.addLayer(vectorLayer);
+        
+        // Coordinate display on hover with null checks
+        map.on('pointermove', function(evt) {
+            if (evt.dragging) return;
+            var coords3857 = evt.coordinate;
+            var coords4326 = ol.proj.transform(coords3857, 'EPSG:3857', 'EPSG:4326');
+            var lng = coords4326[0];
+            var lat = coords4326[1];
+            safeSetText('hoverLat', lat.toFixed(6));
+            safeSetText('hoverLng', lng.toFixed(6));
+            safeSetText('hoverLocation', detectLocation(lat, lng));
+        });
+        
+        // Click handler for building selection
+        map.on('click', function(evt) {
+            var feature = map.forEachFeatureAtPixel(evt.pixel, function(f) { return f; });
+            if (feature) {
+                var props = feature.getProperties();
+                if (props.buildingId) {
+                    loadBuildingForEdit(props.buildingId);
+                }
+            } else {
+                var coords3857 = evt.coordinate;
+                var coords4326 = ol.proj.transform(coords3857, 'EPSG:3857', 'EPSG:4326');
+                var lng = coords4326[0];
+                var lat = coords4326[1];
+                var loc = detectLocation(lat, lng);
+                showToast('📍 Clicked: ' + loc + ' (Lat ' + lat.toFixed(6) + ', Lng ' + lng.toFixed(6) + ')', 'info');
+            }
+        });
+        
+        loadBuildings();
+        
+        var layerSelect = document.getElementById('mapLayer');
+        if (layerSelect) {
+            layerSelect.value = 'satellite';
+        }
+        
+        console.log('✅ OpenLayers map initialized successfully!');
+        
+           
     } catch(e) {
-        console.error('Error loading GeoJSON data:', e);
-        showNoDataMessage();
+        console.error('Error initializing map:', e);
+        container.innerHTML = 
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#e74c3c;font-size:1.2rem;flex-direction:column;">' +
+            '<i class="fas fa-exclamation-triangle" style="font-size:2rem;margin-bottom:10px;"></i>' +
+            'Error loading map: ' + e.message +
+            '</div>';
     }
-
-    // Handle window resize
-    window.addEventListener('resize', function() {
-        if (map) {
-            map.invalidateSize();
-        }
-    });
 });
-
-// Make functions globally accessible
+// ============================================
+// GLOBAL EXPOSURE - MAKE FUNCTIONS AVAILABLE
+// ============================================
+window.map = map;
+window.vectorSource = vectorSource;
+window.vectorLayer = vectorLayer;
 window.changeMapLayer = changeMapLayer;
 window.resetMapView = resetMapView;
-window.toggleClustering = toggleClustering;
 window.filterByCorporation = filterByCorporation;
 window.applyFilter = applyFilter;
 window.closeFilter = closeFilter;
-    </script>
-    {% endblock %}
+window.enableDrawMode = enableDrawMode;
+window.cancelDrawing = cancelDrawing;
+window.clearAllFeatures = clearAllFeatures;
+window.loadBuildingForEdit = loadBuildingForEdit;
+window.deleteBuilding = deleteBuilding;
+window.refreshData = refreshData;
+window.showToast = showToast;
+window.openFindGisModal = openFindGisModal;
+window.zoomToBuilding = zoomToBuilding;
+window.closeFindGisModal = closeFindGisModal;
+window.showMapCenter = showMapCenter;
+window.getMapCenterLatLong = getMapCenterLatLong;
+window.formatCoordinatesForDisplay = formatCoordinatesForDisplay;
+window.parseCoordinates = parseCoordinates;
+window.convert3857to4326 = convert3857to4326;
+window.detectLocation = detectLocation;
+window.safeSetText = safeSetText;
+window.safeSetValue = safeSetValue;
+</script>
+{% endblock %}

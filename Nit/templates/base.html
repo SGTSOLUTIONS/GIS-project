@@ -432,6 +432,7 @@
             padding: 24px 32px 32px 32px;
         }
 
+
         /* ============================================
            RESPONSIVE
            ============================================ */
@@ -592,23 +593,7 @@
         <i class="fas fa-map-marked-alt"></i> Wards
     </a>
 
-    <a href="{% url 'residential' %}"
-        class="nav-item {% if request.resolver_match.url_name == 'residential' %}active{% endif %}">
-        <i class="fas fa-home"></i> Residential
-        <span class="nav-badge">{{ residential_count|default:"0" }}</span>
-    </a>
 
-    <a href="{% url 'commercial' %}"
-        class="nav-item {% if request.resolver_match.url_name == 'commercial' %}active{% endif %}">
-        <i class="fas fa-store"></i> Commercial
-        <span class="nav-badge">{{ commercial_count|default:"0" }}</span>
-    </a>
-
-    <a href="{% url 'industrial' %}"
-        class="nav-item {% if request.resolver_match.url_name == 'industrial' %}active{% endif %}">
-        <i class="fas fa-industry"></i> Industrial
-        <span class="nav-badge">{{ industrial_count|default:"0" }}</span>
-    </a>
 
     <a href="{% url 'map_view' %}"
         class="nav-item {% if request.resolver_match.url_name == 'map' %}active{% endif %}">
@@ -618,10 +603,6 @@
     <!-- GIS & Reports -->
     <div class="nav-label" style="margin-top:8px;">Analysis</div>
 
-    <a href="{% url 'property' %}"
-        class="nav-item {% if request.resolver_match.url_name == 'property' %}active{% endif %}">
-        <i class="fas fa-map-pin"></i> Property
-    </a>
 
     <a href="{% url 'gis' %}"
         class="nav-item {% if request.resolver_match.url_name == 'gis' %}active{% endif %}">

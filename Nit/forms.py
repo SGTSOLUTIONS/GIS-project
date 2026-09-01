@@ -1,97 +1,166 @@
-# forms.py
 from django import forms
-from .models import Assessment, BuildingData, PointData, PolygonFeature, Surveyor
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
+from .models import CBE
+from .models import Surveyor, Corporation, Building, CBE, TaxCollector, Ward, AssessmentData, Attendance
 
 
-class AssessmentForm(forms.ModelForm):
+class UserRegistrationForm(UserCreationForm):
+    email = forms.EmailField(required=True)
+    first_name = forms.CharField(required=True)
+    last_name = forms.CharField(required=True)
+    role = forms.ChoiceField(choices=[
+        ('surveyor', 'Surveyor'),
+        ('cbe', 'CBE'),
+        ('taxcollector', 'Tax Collector'),
+    ])
+    
     class Meta:
-        model = Assessment
-        fields = [
-            'gis_id', 'owner_name', 'present_owner_name', 'owner_contact',
-            'address', 'property_type', 'latitude', 'longitude', 'area_sq_m',
-            'plot_area', 'water_tax', 'halfyeartax', 'balance',
-            'building_type', 'floor_count', 'number_floor', 'construction_type',
-            'construction_year', 'condition', 'old_assessment', 'old_door_no',
-            'new_door_no', 'new_address', 'phone', 'bill_usage', 'building_usage',
-            'tax_amount', 'tax_paid', 'tax_paid_date', 'status', 'remarks',
-            'qc_area', 'qc_usage', 'qc_name', 'qc_remarks', 'otsarea'
-        ]
-        widgets = {
-            'address': forms.Textarea(attrs={'rows': 3}),
-            'remarks': forms.Textarea(attrs={'rows': 3}),
-            'qc_remarks': forms.Textarea(attrs={'rows': 3}),
-        }
-
-
-class BuildingDataForm(forms.ModelForm):
-    class Meta:
-        model = BuildingData
-        fields = [
-            'gisid', 'number_bill', 'number_shop', 'number_floor', 'new_address',
-            'liftroom', 'headroom', 'overhead_tank', 'percentage', 'building_name',
-            'building_usage', 'construction_type', 'road_name', 'ugd',
-            'rainwater_harvesting', 'parking', 'ramp', 'hoarding', 'cctv',
-            'cell_tower', 'solar_panel', 'basement', 'water_connection',
-            'phone', 'building_type', 'image', 'sqfeet', 'merge', 'split',
-            'worker_name', 'remarks', 'corporationremarks'
-        ]
-        widgets = {
-            'remarks': forms.Textarea(attrs={'rows': 3}),
-            'corporationremarks': forms.Textarea(attrs={'rows': 3}),
-        }
-
-
-class PointDataForm(forms.ModelForm):
-    class Meta:
-        model = PointData
-        fields = [
-            'point_gisid', 'worker_name', 'assessment', 'old_assessment',
-            'owner_name', 'present_owner_name', 'eb', 'floor', 'bill_usage',
-            'aadhar_no', 'ration_no', 'phone_number', 'shop_floor', 'shop_name',
-            'shop_owner_name', 'old_door_no', 'new_door_no', 'shop_category',
-            'shop_mobile', 'license', 'professional_tax', 'gst',
-            'number_of_employee', 'trade_income', 'establishment_remarks',
-            'remarks', 'plot_area', 'water_tax', 'halfyeartax', 'balance',
-            'building_data_id', 'qc_area', 'qc_usage', 'qc_name', 'qc_remarks',
-            'otsarea'
-        ]
-        widgets = {
-            'establishment_remarks': forms.Textarea(attrs={'rows': 3}),
-            'remarks': forms.Textarea(attrs={'rows': 3}),
-            'qc_remarks': forms.Textarea(attrs={'rows': 3}),
-        }
-
-
-class PolygonFeatureForm(forms.ModelForm):
-    class Meta:
-        model = PolygonFeature
-        fields = ['gisid', 'type', 'coordinates']
-        widgets = {
-            'coordinates': forms.Textarea(attrs={'rows': 5, 'class': 'json-editor'}),
-        }
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2', 'role']
 
 
 class SurveyorForm(forms.ModelForm):
     class Meta:
         model = Surveyor
-        fields = ['employee_id', 'department', 'data', 'mobile', 'is_active']
+        fields = ['phone', 'address', 'assigned_ward', 'is_active']
         widgets = {
-            'department': forms.TextInput(attrs={'class': 'form-control'}),
-            'mobile': forms.TextInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Phone Number'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Address'}),
+            'assigned_ward': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 
-class UserRegistrationForm(forms.Form):
-    username = forms.CharField(max_length=150, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control'}))
-    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control'}))
-    password2 = forms.CharField(label='Confirm Password', widget=forms.PasswordInput(attrs={'class': 'form-control'}))
-    role = forms.ChoiceField(
-        choices=[('surveyor', 'Surveyor'), ('admin', 'Admin'), ('cbe', 'CBE'), ('taxcollector', 'Tax Collector')],
-        widget=forms.Select(attrs={'class': 'form-control'})
-    )
+class CBEForm(forms.ModelForm):
+    class Meta:
+        model = CBE
+        fields = ['name', 'email', 'password', 'code', 'is_active']
+        widgets = {
+            'password': forms.PasswordInput(render_value=True),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'code': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+class TaxCollectorForm(forms.ModelForm):
+    class Meta:
+        model = TaxCollector
+        fields = ['user', 'employee_id', 'phone', 'is_active']
+        widgets = {
+            'corporation': forms.Select(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Phone Number'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class CorporationForm(forms.ModelForm):
+    class Meta:
+        model = Corporation
+        fields = ['name', 'code', 'total_area']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'code': forms.TextInput(attrs={'class': 'form-control'}),
+            'total_area': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        }
+
+
+class BuildingForm(forms.ModelForm):
+    class Meta:
+        model = Building
+        fields = [
+            'gis_id', 'building_name', 'building_number', 'area',
+            'building_type', 'floors', 'construction_year',
+            'owner_name', 'owner_contact', 'corporation',
+            'ward', 'city', 'state', 'pincode', 'is_active'
+        ]
+        widgets = {
+            'gis_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'building_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'building_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'area': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'building_type': forms.Select(attrs={'class': 'form-control'}),
+            'floors': forms.NumberInput(attrs={'class': 'form-control'}),
+            'construction_year': forms.NumberInput(attrs={'class': 'form-control'}),
+            'owner_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'owner_contact': forms.TextInput(attrs={'class': 'form-control'}),
+            'corporation': forms.Select(attrs={'class': 'form-control'}),
+            'ward': forms.TextInput(attrs={'class': 'form-control'}),
+            'city': forms.TextInput(attrs={'class': 'form-control'}),
+            'state': forms.TextInput(attrs={'class': 'form-control'}),
+            'pincode': forms.TextInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class WardForm(forms.ModelForm):
+    class Meta:
+        model = Ward
+        fields = ['name', 'ward_number', 'area_ha', 'population', 'is_active']  # Remove employee_id, phone, user
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'ward_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'area_ha': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'population': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class AssessmentDataForm(forms.ModelForm):
+    class Meta:
+        model = AssessmentData
+        fields = ['gis_id', 'building', 'assessed_value', 'tax_amount', 'assessment_year', 'status']
+        widgets = {
+            'gis_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'building': forms.Select(attrs={'class': 'form-control'}),
+            'assessed_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'tax_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'assessment_year': forms.NumberInput(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+        }
+
+
+class AttendanceForm(forms.ModelForm):
+    class Meta:
+        model = Attendance
+        # Use the correct field names from your model
+        fields = ['date', 'check_in_time', 'check_out_time', 'check_in_lat', 'check_in_lng', 
+                  'check_out_lat', 'check_out_lng', 'inlocation', 'outlocation', 'status', 
+                  'ward', 'remarks']
+        widgets = {
+            'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'check_in_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'check_out_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'check_in_lat': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+            'check_in_lng': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+            'check_out_lat': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+            'check_out_lng': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.000001'}),
+            'inlocation': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'outlocation': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'ward': forms.TextInput(attrs={'class': 'form-control'}),
+            'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
 
 
 class LoginForm(forms.Form):
     username = forms.CharField(max_length=150, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Username'}))
     password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Password'}))
+
+
+class PasswordResetForm(forms.Form):
+    email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email'}))
+
+
+class SetPasswordForm(forms.Form):
+    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'New Password'}))
+    confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Confirm Password'}))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+        if password and confirm_password and password != confirm_password:
+            raise forms.ValidationError("Passwords don't match")
+        return cleaned_data

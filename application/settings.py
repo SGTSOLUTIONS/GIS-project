@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 # settings.py - Add this at the very top
 import os
+import pymysql
+pymysql.install_as_MySQLdb()
 import sys
 
 # GDAL Configuration for OSGeo4W
@@ -42,21 +44,38 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'Nit',  # Your GIS survey app
+    'django.contrib.gis',  # Add this if using GIS
+    'rest_framework',      # Add this
+    'corsheaders',         # Add this
+    'Nit',                 # Your app
+    # ... other apps
 ]
 
+# Add middleware (add at the top of MIDDLEWARE list)
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # Add this at the top
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'Nit.middleware.RoleMiddleware',  # Your role middleware
-    
 ]
+
+# Add CORS settings (at the bottom of settings.py)
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_CREDENTIALS = True
+
+# REST Framework settings
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
 
 ROOT_URLCONF = 'application.urls'
 
@@ -84,7 +103,7 @@ DATABASES = {
         'NAME': 'gis_survey_db',
         'USER': 'root',
         'PASSWORD': 'root123',  # ← YOU NEED A PASSWORD HERE
-        'HOST': 'localhost',
+        'HOST': '127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
