@@ -102,7 +102,7 @@ DATABASES = {
         'ENGINE': 'django.contrib.gis.db.backends.mysql',  # ✅ GIS engine
         'NAME': 'gis_survey_db',
         'USER': 'root',
-        'PASSWORD': 'root123',  # ← YOU NEED A PASSWORD HERE
+        'PASSWORD': 'root1234',  # ← YOU NEED A PASSWORD HERE
         'HOST': '127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {

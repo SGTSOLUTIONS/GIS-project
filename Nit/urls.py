@@ -150,6 +150,9 @@ path('corporation/upload/', views_geometry.upload_corporation_geojson, name='upl
     path('api/wards/', views.api_wards, name='api_wards'),
     path('api/property/<str:gis_id>/', views.api_property_detail, name='api_property_detail'),
     
+    
+    #GISID
+    path('api/next-gis-id/', views.get_next_gis_id, name='next_gis_id'),
     # GeoJSON endpoints
     path('buildings-geojson/', views.buildings_geojson, name='buildings_geojson'),
     path('buildings-geojson/corporation/<int:corporation_id>/', views.buildings_geojson, name='corporation_buildings_geojson'),
