@@ -148,6 +148,7 @@
                 <option value="osm">🗺️ Street</option>
                 <option value="dark">🌙 Dark</option>
                 <option value="light">☀️ Light</option>
+                
             </select>
         </div>
     </div>
@@ -1946,7 +1947,7 @@ MODAL CENTERING & BACKGROUND FIX
         t.classList.add('show');
         setTimeout(function () {
             t.classList.remove('show');
-        }, 3000);
+        }, 6500);
     }
 
     // ============================================
@@ -2068,22 +2069,27 @@ MODAL CENTERING & BACKGROUND FIX
     // ============================================
     // FORMAT COORDINATES FOR DISPLAY
     // ============================================
-    function formatCoordinatesForDisplay(coords) {
-        if (!coords || !Array.isArray(coords) || coords.length === 0) return '';
-        var lines = coords.map(function (p) {
-            if (Array.isArray(p) && p.length === 2) {
-                var value1 = parseFloat(p[0]);
-                var value2 = parseFloat(p[1]);
-                if (Math.abs(value1) > 100000 || Math.abs(value2) > 100000) {
-                    var converted = convert3857to4326(value2, value1);
-                    return converted.lat.toFixed(6) + ',' + converted.lng.toFixed(6);
-                }
-                return value2.toFixed(6) + ',' + value1.toFixed(6);
-            }
-            return '';
-        });
-        return lines.join('\n');
+   function formatCoordinatesForDisplay(coords) {
+
+    if (!coords || !Array.isArray(coords) || coords.length === 0) {
+        return '';
     }
+
+    var lines = coords.map(function (p) {
+
+        if (Array.isArray(p) && p.length === 2) {
+
+            var longitude = parseFloat(p[0]);
+            var latitude = parseFloat(p[1]);
+
+            return latitude.toFixed(6) + ',' + longitude.toFixed(6);
+        }
+
+        return '';
+    });
+
+    return lines.join('\n');
+}
 
     // ============================================
     // AUTO-DETECT LOCATION FROM COORDINATES
@@ -2250,38 +2256,78 @@ MODAL CENTERING & BACKGROUND FIX
         }
     }
 
+        // ============================================
+    // LOAD BUILDINGS - WITH FILTER
     // ============================================
-    // LOAD BUILDINGS
-    // ============================================
-    function loadBuildings() {
-        var url = '/buildings-geojson/';
-        fetch(url)
-            .then(function (response) {
-                if (!response.ok) throw new Error('Failed to load buildings');
-                return response.json();
-            })
-            .then(function (data) {
-                if (data.features && data.features.length > 0) {
-                    buildingData = data;
-                    renderBuildings(data);
-                    console.log('✅ Loaded ' + data.features.length + ' buildings');
-                    var activeCount = data.features.filter(function (f) {
-                        return f.properties && f.properties.is_active !== false;
-                    }).length;
-                    safeSetText('activeBuildings', activeCount || data.features.length);
-                    updateGisIdStats();
-                    updateCorporationChips();
-                } else {
-                    console.log('ℹ️ No buildings found');
-                    if (vectorSource) vectorSource.clear();
-                }
-            })
-            .catch(function (error) {
-                console.error('Error loading buildings:', error);
-                showToast('Error loading buildings: ' + error.message, 'error');
-            });
-    }
+ // ============================================
+// LOAD BUILDINGS
+// ============================================
+function loadBuildings() {
 
+    var url = '/buildings-geojson/';
+
+    fetch(url)
+        .then(function (response) {
+
+            if (!response.ok) {
+                throw new Error('Failed to load buildings');
+            }
+
+            return response.json();
+        })
+        .then(function (data) {
+
+            if (data.features && data.features.length > 0) {
+
+                // Keep the ORIGINAL GeoJSON
+                buildingData = data;
+
+                // Render buildings
+                renderBuildings(data);
+
+                console.log(
+                    '✅ Loaded ' +
+                    data.features.length +
+                    ' buildings'
+                );
+
+                var activeCount = data.features.filter(function (f) {
+
+                    return f.properties &&
+                           f.properties.is_active !== false;
+
+                }).length;
+
+                safeSetText(
+                    'activeBuildings',
+                    activeCount || data.features.length
+                );
+
+                updateGisIdStats();
+                updateCorporationChips();
+
+            } else {
+
+                console.log('ℹ️ No buildings found');
+
+                if (vectorSource) {
+                    vectorSource.clear();
+                }
+            }
+        })
+        .catch(function (error) {
+
+            console.error(
+                'Error loading buildings:',
+                error
+            );
+
+            showToast(
+                'Error loading buildings: ' + error.message,
+                'error'
+            );
+        });
+}
     // ============================================
     // UPDATE CORPORATION CHIPS WITH GIS INFO
     // ============================================
@@ -2367,59 +2413,61 @@ MODAL CENTERING & BACKGROUND FIX
         return Promise.resolve('1');
     }
 
- // ============================================
-// FIND NEAREST CORPORATION
-// ============================================
-function findNearestCorporation(coords) {
-    if (!buildingData || !buildingData.features || buildingData.features.length === 0) {
-        return null;
-    }
-    
-    // coords are in EPSG:3857 format
-    var centerX = 0;
-    var centerY = 0;
-    coords.forEach(function(p) {
-        centerX += p[0];
-        centerY += p[1];
-    });
-    centerX = centerX / coords.length;
-    centerY = centerY / coords.length;
-    
-    var nearestDist = Infinity;
-    var nearestCorp = null;
-    
-    buildingData.features.forEach(function(feature) {
-        var geometry = feature.geometry;
-        if (!geometry || !geometry.coordinates) return;
-        
-        var props = feature.properties || {};
-        var corp = props.corporation || props.Corporation || props.CORPORATION;
-        if (!corp) return;
-        
-        // Get centroid of existing building (already in EPSG:3857)
-        var coords3857 = geometry.coordinates[0];
-        var x = 0;
-        var y = 0;
-        coords3857.forEach(function(p) {
-            x += p[0];
-            y += p[1];
-        });
-        x = x / coords3857.length;
-        y = y / coords3857.length;
-        
-        var distance = Math.sqrt(
-            Math.pow(x - centerX, 2) + 
-            Math.pow(y - centerY, 2)
-        );
-        
-        if (distance < nearestDist) {
-            nearestDist = distance;
-            nearestCorp = corp;
+    // ============================================
+    // FIND NEAREST CORPORATION
+    // ============================================
+    function findNearestCorporation(coords) {
+        if (!buildingData || !buildingData.features || buildingData.features.length === 0) {
+            return null;
         }
-    });
-    
-    return nearestCorp;
-}
+
+        // Calculate center of drawn polygon
+        var centerLat = 0;
+        var centerLng = 0;
+        coords.forEach(function (p) {
+            centerLat += p[1];
+            centerLng += p[0];
+        });
+        centerLat = centerLat / coords.length;
+        centerLng = centerLng / coords.length;
+
+        var nearestDist = Infinity;
+        var nearestCorp = null;
+
+        buildingData.features.forEach(function (feature) {
+            var geometry = feature.geometry;
+            if (!geometry || !geometry.coordinates) return;
+
+            var props = feature.properties || {};
+            var corp = props.corporation || props.Corporation || props.CORPORATION;
+            if (!corp) return;
+
+            // Get centroid of existing building
+            var coords3857 = geometry.coordinates[0];
+            var lat = 0;
+            var lng = 0;
+            coords3857.forEach(function (p) {
+                // Convert from EPSG:3857 to EPSG:4326
+                var converted = ol.proj.transform(p, 'EPSG:3857', 'EPSG:4326');
+                lat += converted[1];
+                lng += converted[0];
+            });
+            lat = lat / coords3857.length;
+            lng = lng / coords3857.length;
+
+            var distance = Math.sqrt(
+                Math.pow(lat - centerLat, 2) +
+                Math.pow(lng - centerLng, 2)
+            );
+
+            if (distance < nearestDist) {
+                nearestDist = distance;
+                nearestCorp = corp;
+            }
+        });
+
+        return nearestCorp;
+    }
 
     // ============================================
     // GET CORPORATION NAME BY ID
@@ -2451,128 +2499,182 @@ function findNearestCorporation(coords) {
         });
     }
 
-    // ============================================
-    // RENDER BUILDINGS
-    // ============================================
-    function renderBuildings(geojson) {
+  // ============================================
+// RENDER BUILDINGS
+// ============================================
+function renderBuildings(geojson) {
 
-        if (!geojson || !geojson.features || !vectorSource) {
-            console.warn('No GeoJSON data or vectorSource not ready');
+    if (!geojson || !geojson.features || !vectorSource) {
+        console.warn('No GeoJSON data or vectorSource not ready');
+        return;
+    }
+
+    console.log('📊 Rendering ' + geojson.features.length + ' buildings');
+
+    vectorSource.clear();
+
+    // ============================================
+    // READ GEOJSON
+    // GeoJSON = EPSG:4326 [Longitude, Latitude]
+    // Map     = EPSG:3857
+    // ============================================
+
+    var format = new ol.format.GeoJSON();
+    var features;
+
+    try {
+
+        features = format.readFeatures(geojson, {
+            dataProjection: 'EPSG:4326',
+            featureProjection: 'EPSG:3857'
+        });
+
+    } catch (e) {
+
+        console.error('❌ Error reading GeoJSON:', e);
+        return;
+    }
+
+    if (!features || features.length === 10) {
+
+        console.warn('No features found in GeoJSON');
+        return;
+    }
+
+    // ============================================
+    // STYLE EACH BUILDING
+    // ============================================
+
+    features.forEach(function (feature) {
+
+        var props = feature.getProperties();
+        var geom = feature.getGeometry();
+
+        if (!geom) {
             return;
         }
 
-        console.log('📊 Rendering ' + geojson.features.length + ' buildings');
-        vectorSource.clear();
+        var color = getCorporationColor(
+            props.corporation || ''
+        );
 
-        /*
-         * ROBUST COORDINATE HANDLING
-         * 1. Checks if coordinates are Lat/Lng (EPSG:4326) -> Range: -180 to 180 (Lng), -90 to 90 (Lat)
-         * 2. Checks if coordinates are Web Mercator (EPSG:3857) -> Range: +/- 20,000,000
-         *
-         * We normalize everything to EPSG:4326 [Lng, Lat] before handing it to OpenLayers.
-         */
-        var fixedGeoJSON = JSON.parse(JSON.stringify(geojson));
+        var style = new ol.style.Style({
 
-        function normalizeCoordinates(coords) {
-            // If this is a single coordinate pair [X, Y]
-            if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-                var x = coords[0];
-                var y = coords[1];
+            fill: new ol.style.Fill({
+                color: color + '33'
+            }),
 
-                // If it's already Lat/Lng (EPSG:4326)
-                if (Math.abs(x) <= 180 && Math.abs(y) <= 90) {
-                    return [x, y]; // Return [Lng, Lat] as is
-                }
-                // If it's EPSG:3857 (Web Mercator)
-                else if (Math.abs(x) > 100000 && Math.abs(y) > 100000) {
-                    // Convert [X, Y] to [Lng, Lat]
-                    var converted = ol.proj.transform([x, y], 'EPSG:3857', 'EPSG:4326');
-                    return [converted[0], converted[1]];
-                }
-                // Fallback: return as is (assume it's Lat/Lng)
-                return [x, y];
-            }
-            // If this is an array of coordinates (Polygon / MultiPolygon etc.)
-            if (Array.isArray(coords)) {
-                return coords.map(function (item) {
-                    return normalizeCoordinates(item);
-                });
-            }
-            return coords;
-        }
+            stroke: new ol.style.Stroke({
+                color: color,
+                width: 3
+            }),
 
-        // Apply normalization to every geometry
-        fixedGeoJSON.features.forEach(function (feature) {
-            if (feature.geometry && feature.geometry.coordinates) {
-                feature.geometry.coordinates = normalizeCoordinates(feature.geometry.coordinates);
-            }
+            zIndex: 1
         });
 
-        console.log('🔄 Coordinates normalized to EPSG:4326 (Lng, Lat)');
+        feature.setStyle(style);
 
-        var format = new ol.format.GeoJSON();
-        var features;
+        // ============================================
+        // BUILDING INFORMATION
+        // ============================================
+
+        feature.set(
+            'buildingId',
+            props.id ||
+            props.OBJECTID ||
+            props.GIS_ID
+        );
+
+        feature.set(
+            'gisId',
+            props.gis_id ||
+            props.GIS_ID
+        );
+
+        feature.set(
+            'buildingName',
+            props.building_name ||
+            props.name ||
+            'Unnamed'
+        );
+
+        feature.set(
+            'corporation',
+            props.corporation ||
+            'Unknown'
+        );
+
+        feature.set(
+            'area',
+            props.area ||
+            props.sqft ||
+            0
+        );
+
+        feature.set(
+            'buildingType',
+            props.building_type ||
+            'Other'
+        );
+
+    });
+
+    // ============================================
+    // ADD BUILDINGS TO MAP
+    // ============================================
+
+    vectorSource.addFeatures(features);
+
+    console.log(
+        '✅ Added ' +
+        features.length +
+        ' correctly positioned buildings'
+    );
+
+    // ============================================
+    // FIT MAP TO BUILDINGS
+    // ============================================
+
+    var hasSavedPosition =
+        window.mapRestorePosition &&
+        window.mapRestorePosition.lat &&
+        window.mapRestorePosition.lng;
+
+    if (!hasSavedPosition) {
 
         try {
-            features = format.readFeatures(fixedGeoJSON, {
-                dataProjection: 'EPSG:4326', // We normalized it to this
-                featureProjection: 'EPSG:3857' // Map uses this
-            });
-        } catch (e) {
-            console.error('❌ Error reading corrected GeoJSON:', e);
-            return;
-        }
 
-        if (!features || features.length === 0) {
-            console.warn('No features found in GeoJSON');
-            return;
-        }
+            var extent = vectorSource.getExtent();
 
-        features.forEach(function (feature) {
-            var props = feature.getProperties();
-            var geom = feature.getGeometry();
+            if (
+                extent &&
+                !ol.extent.isEmpty(extent)
+            ) {
 
-            if (!geom) return;
+                map.getView().fit(extent, {
 
-            var color = getCorporationColor(props.corporation || '');
+                    padding: [80, 80, 80, 80],
 
-            var style = new ol.style.Style({
-                fill: new ol.style.Fill({ color: color + '33' }),
-                stroke: new ol.style.Stroke({ color: color, width: 3 }),
-                zIndex: 1
-            });
+                    maxZoom: 19,
 
-            feature.setStyle(style);
+                    duration: 800
 
-            feature.set('buildingId', props.id || props.OBJECTID || props.GIS_ID);
-            feature.set('gisId', props.gis_id || props.GIS_ID);
-            feature.set('buildingName', props.building_name || props.name || 'Unnamed');
-            feature.set('corporation', props.corporation || 'Unknown');
-            feature.set('area', props.area || props.sqft || 0);
-            feature.set('buildingType', props.building_type || 'Other');
-        });
+                });
 
-        vectorSource.addFeatures(features);
-        console.log('✅ Added ' + features.length + ' correctly positioned buildings');
-
-        var hasSavedPosition = window.mapRestorePosition && window.mapRestorePosition.lat && window.mapRestorePosition.lng;
-
-        if (!hasSavedPosition) {
-            try {
-                var extent = vectorSource.getExtent();
-                if (extent && !ol.extent.isEmpty(extent)) {
-                    map.getView().fit(extent, {
-                        padding: [80, 80, 80, 80],
-                        maxZoom: 19,
-                        duration: 800
-                    });
-                    console.log('✅ Map fitted to corrected building extent');
-                }
-            } catch (e) {
-                console.error('❌ Error fitting map to buildings:', e);
+                console.log(
+                    '✅ Map fitted to building extent'
+                );
             }
+
+        } catch (e) {
+
+            console.error(
+                '❌ Error fitting map to buildings:',
+                e
+            );
         }
     }
+}
 
     // ============================================
     // RENDER BUILDINGS WITHOUT FIT
@@ -2588,7 +2690,7 @@ function findNearestCorporation(coords) {
         var fixedGeoJSON = JSON.parse(JSON.stringify(geojson));
 
         function normalizeCoordinates(coords) {
-            if (Array.isArray(coords) && coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+            if (Array.isArray(coords) && coords.length === 1 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
                 var x = coords[0];
                 var y = coords[1];
 
@@ -2685,168 +2787,166 @@ function findNearestCorporation(coords) {
     // ============================================
     // FINISH DRAWING - WITH CORPORATION-BASED GIS ID
     // ============================================
- // ============================================
-// FINISH DRAWING - WITH CORRECT AREA CALCULATION
-// ============================================
-function finishDrawing(event) {
-    var feature = event.feature;
-    var geometry = feature.getGeometry();
-    
-    // Get coordinates in EPSG:3857 from the map
-    var coords3857 = geometry.getCoordinates()[0];
-    
-    // Store coordinates in EPSG:3857 format for area calculation
-    var formattedCoords = coords3857.map(function(c) {
-        return [c[0], c[1]]; // Keep as EPSG:3857
-    });
-    
-    // Calculate area from EPSG:3857 coordinates
-    var areaSqFt = calculatePolygonArea(formattedCoords);
-    
-    // Get Lat/Lng for display and location detection
-    var coords4326 = coords3857.map(function(c) {
-        return ol.proj.transform(c, 'EPSG:3857', 'EPSG:4326');
-    });
-    
-    // Calculate center for location detection
-    var centerLat = 0;
-    var centerLng = 0;
-    coords4326.forEach(function(p) {
-        centerLat += p[1];
-        centerLng += p[0];
-    });
-    centerLat = centerLat / coords4326.length;
-    centerLng = centerLng / coords4326.length;
-    
-    var locationName = detectLocation(centerLat, centerLng);
-    console.log('📍 Drawing at:', locationName);
-    console.log('📍 Area:', formatArea(areaSqFt));
-    console.log('📍 Coordinates (Lat/Lng):', coords4326);
-    
-    currentPolygonCoords = coords4326; // Store as Lat/Lng for display
-    
-    map.removeInteraction(drawInteraction);
-    drawInteraction = null;
-    isDrawing = false;
-    
-    var drawBtn = document.getElementById('drawBtn');
-    var cancelBtn = document.getElementById('cancelDrawBtn');
-    if (drawBtn) drawBtn.style.display = 'inline-flex';
-    if (cancelBtn) cancelBtn.style.display = 'none';
+    // ============================================
+    // FINISH DRAWING - WITH AREA CALCULATION
+    // ============================================
+    function finishDrawing(event) {
+        var feature = event.feature;
+        var geometry = feature.getGeometry();
 
-    feature.setStyle(new ol.style.Style({
-        fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.12)' }),
-        stroke: new ol.style.Stroke({ color: '#10b981', width: 4 })
-    }));
+        // Get coordinates in EPSG:3857 from the map
+        var coords3857 = geometry.getCoordinates()[0];
 
-    // Open form with area pre-calculated
-    openBuildingFormModalWithArea(coords4326, locationName, areaSqFt);
-    showToast('✅ Polygon drawn! Area: ' + formatArea(areaSqFt), 'success');
-}
-  // ============================================
-// OPEN BUILDING FORM WITH AREA
-// ============================================
-function openBuildingFormModalWithArea(coords, locationName, areaSqFt) {
-    safeSetText('modalTitle', '🏗️ Add New Building');
-    safeSetText('modalSubtitle', '📍 ' + (locationName || 'Unknown Location'));
-    safeSetValue('buildingId', '');
-    safeSetText('displayBuildingId', '#NEW');
-    
-    var form = document.getElementById('buildingForm');
-    if (form) form.reset();
-    
-    // Auto-fill the area
-    if (areaSqFt && areaSqFt > 0) {
-        safeSetValue('area', areaSqFt.toFixed(2));
-    }
-    
-    // Get the selected corporation
-    var corporationSelect = document.getElementById('corporation');
-    var selectedCorporation = corporationSelect ? corporationSelect.value : '';
-    var selectedCorpName = null;
-    
-    if (selectedCorporation) {
-        selectedCorpName = getCorporationNameById(selectedCorporation);
-    }
-    
-    // If no corporation selected, auto-detect
-    if (!selectedCorpName && buildingData && buildingData.features) {
-        // Convert coordinates to EPSG:3857 for finding nearest corporation
-        var coords3857 = coords.map(function(p) {
-            return ol.proj.transform([p[0], p[1]], 'EPSG:4326', 'EPSG:3857');
+        // Convert map coordinates (EPSG:3857) to standard Geographic coordinates (EPSG:4326)
+        var formattedCoords = coords3857.map(function (c) {
+            return ol.proj.transform(c, 'EPSG:3857', 'EPSG:4326');
         });
-        var nearestCorp = findNearestCorporation(coords3857);
-        if (nearestCorp) {
-            selectedCorpName = nearestCorp;
-            var select = document.getElementById('corporation');
-            for (var i = 0; i < select.options.length; i++) {
-                if (select.options[i].text === nearestCorp) {
-                    select.value = select.options[i].value;
-                    selectedCorporation = select.options[i].value;
-                    break;
+
+        // Calculate area
+        var areaSqFt = calculatePolygonArea(formattedCoords);
+
+        // Calculate center for location detection
+        var centerLat = 0;
+        var centerLng = 0;
+        formattedCoords.forEach(function (p) {
+            centerLat += p[1];
+            centerLng += p[0];
+        });
+        centerLat = centerLat / formattedCoords.length;
+        centerLng = centerLng / formattedCoords.length;
+
+        var locationName = detectLocation(centerLat, centerLng);
+        console.log('📍 Drawing at:', locationName, 'Area:', formatArea(areaSqFt), 'Coords:', formattedCoords);
+
+        currentPolygonCoords = formattedCoords;
+
+        map.removeInteraction(drawInteraction);
+        drawInteraction = null;
+        isDrawing = false;
+
+        var drawBtn = document.getElementById('drawBtn');
+        var cancelBtn = document.getElementById('cancelDrawBtn');
+        if (drawBtn) drawBtn.style.display = 'inline-flex';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+
+        feature.setStyle(new ol.style.Style({
+            fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.12)' }),
+            stroke: new ol.style.Stroke({ color: '#10b981', width: 4 })
+        }));
+
+        // Open form with area pre-calculated
+        openBuildingFormModalWithArea(formattedCoords, locationName, areaSqFt);
+        showToast('✅ Polygon drawn at ' + locationName + '! Area: ' + formatArea(areaSqFt), 'success');
+    }
+
+    // ============================================
+    // OPEN BUILDING FORM WITH AREA
+    // ============================================
+    function openBuildingFormModalWithArea(coords, locationName, areaSqFt) {
+        safeSetText('modalTitle', '🏗️ Add New Building');
+        safeSetText('modalSubtitle', '📍 ' + (locationName || 'Unknown Location') + ' | Area: ' + formatArea(areaSqFt));
+        safeSetValue('buildingId', '');
+        safeSetText('displayBuildingId', '#NEW');
+
+        var form = document.getElementById('buildingForm');
+        if (form) form.reset();
+
+        // Auto-fill the area
+        if (areaSqFt && areaSqFt > 0) {
+            safeSetValue('area', areaSqFt.toFixed(2));
+        }
+
+        // Get the selected corporation from the dropdown
+        var corporationSelect = document.getElementById('corporation');
+        var selectedCorporation = corporationSelect ? corporationSelect.value : '';
+        var selectedCorpName = null;
+
+        // If corporation is selected, get its name
+        if (selectedCorporation) {
+            selectedCorpName = getCorporationNameById(selectedCorporation);
+        }
+
+        // If no corporation selected, try to auto-detect from the nearest building
+        if (!selectedCorpName && buildingData && buildingData.features) {
+            var nearestCorp = findNearestCorporation(coords);
+            if (nearestCorp) {
+                selectedCorpName = nearestCorp;
+                // Try to find and select the corporation in dropdown
+                var select = document.getElementById('corporation');
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].text === nearestCorp) {
+                        select.value = select.options[i].value;
+                        selectedCorporation = select.options[i].value;
+                        break;
+                    }
                 }
             }
         }
+
+        // Get the next GIS ID based on the corporation
+        if (selectedCorpName) {
+            getNextGisIdForCorporation(selectedCorpName).then(function (nextId) {
+                safeSetValue('gisId', nextId);
+                var displayText = '#NEW - ' + selectedCorpName + ' (Next: ' + nextId + ')';
+                safeSetText('displayBuildingId', displayText);
+                console.log('✅ Auto-assigned GIS ID:', nextId, 'for corporation:', selectedCorpName);
+            });
+        } else {
+            // If no corporation, use global next ID
+            getNextGISId().then(function (nextId) {
+                safeSetValue('gisId', nextId);
+                safeSetText('displayBuildingId', '#NEW - Next: ' + nextId);
+            });
+        }
+
+        // Set coordinates
+        var displayText = '';
+        if (coords && Array.isArray(coords)) {
+            var lines = coords.map(function (p) {
+                if (Array.isArray(p) && p.length === 2) {
+                    var x = Number(p[0]);
+                    var y = Number(p[1]);
+                    if (Math.abs(x) > 100000 && Math.abs(y) > 100000) {
+                        var converted = ol.proj.transform([x, y], 'EPSG:3857', 'EPSG:4326');
+                        return converted[1].toFixed(6) + "," + converted[0].toFixed(6);
+                    }
+                    return y.toFixed(6) + "," + x.toFixed(6);
+                }
+                return "";
+            });
+            displayText = lines.join('\n');
+        }
+        safeSetValue('geometryCoords', displayText);
+
+        var deleteBtn = document.getElementById('deleteBuildingBtn');
+        if (deleteBtn) deleteBtn.style.display = 'none';
+
+        var statusDiv = document.getElementById('formStatus');
+        if (statusDiv) {
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'form-status info';
+            statusDiv.innerHTML = '📐 <span>Area calculated: <strong>' + formatArea(areaSqFt) + '</strong></span>';
+        }
+
+        // Set default values
+        safeSetValue('buildingName', '');
+        safeSetValue('buildingType', 'RESIDENTIAL');
+        safeSetValue('floors', '');
+        safeSetValue('ward', '');
+        safeSetValue('ownerName', '');
+        safeSetValue('ownerContact', '');
+
+        if (locationName && locationName !== 'Unknown Location') {
+            var cityParts = locationName.split(',');
+            safeSetValue('city', cityParts[0] || '');
+            safeSetValue('state', cityParts[1] || '');
+        } else {
+            safeSetValue('city', '');
+            safeSetValue('state', '');
+        }
+
+        $('#buildingModal').modal('show');
     }
-    
-    // Get the next GIS ID based on the corporation
-    if (selectedCorpName) {
-        getNextGisIdForCorporation(selectedCorpName).then(function(nextId) {
-            safeSetValue('gisId', nextId);
-            var displayText = '#NEW - ' + selectedCorpName + ' (Next: ' + nextId + ')';
-            safeSetText('displayBuildingId', displayText);
-            console.log('✅ Auto-assigned GIS ID:', nextId, 'for corporation:', selectedCorpName);
-        });
-    } else {
-        getNextGISId().then(function(nextId) {
-            safeSetValue('gisId', nextId);
-            safeSetText('displayBuildingId', '#NEW - Next: ' + nextId);
-        });
-    }
-    
-    // Set coordinates - display as Lat,Lng for readability
-    var displayText = '';
-    if (coords && Array.isArray(coords)) {
-        var lines = coords.map(function(p) {
-            if (Array.isArray(p) && p.length === 2) {
-                // Already in Lat/Lng format
-                return p[1].toFixed(6) + "," + p[0].toFixed(6);
-            }
-            return "";
-        });
-        displayText = lines.join('\n');
-    }
-    safeSetValue('geometryCoords', displayText);
-    
-    var deleteBtn = document.getElementById('deleteBuildingBtn');
-    if (deleteBtn) deleteBtn.style.display = 'none';
-    
-    var statusDiv = document.getElementById('formStatus');
-    if (statusDiv) {
-        statusDiv.style.display = 'block';
-        statusDiv.className = 'form-status info';
-        statusDiv.innerHTML = '📐 <span>Area calculated: <strong>' + formatArea(areaSqFt) + '</strong></span>';
-    }
-    
-    // Set default values
-    safeSetValue('buildingName', '');
-    safeSetValue('buildingType', 'RESIDENTIAL');
-    safeSetValue('floors', '');
-    safeSetValue('ward', '');
-    safeSetValue('ownerName', '');
-    safeSetValue('ownerContact', '');
-    
-    if (locationName && locationName !== 'Unknown Location') {
-        var cityParts = locationName.split(',');
-        safeSetValue('city', cityParts[0] || '');
-        safeSetValue('state', cityParts[1] || '');
-    } else {
-        safeSetValue('city', '');
-        safeSetValue('state', '');
-    }
-    
-    $('#buildingModal').modal('show');
-}
 // ============================================
 // CALCULATE POLYGON AREA - HANDLES BOTH FORMATS
 // ============================================
@@ -4151,7 +4251,7 @@ function getCoords4326(coords) {
     window.getMapCenterLatLong = getMapCenterLatLong;
     window.formatCoordinatesForDisplay = formatCoordinatesForDisplay;
     window.parseCoordinates = parseCoordinates;
-    window.convert3857to4326 = convert3857to4326;
+    
     window.detectLocation = detectLocation;
     window.safeSetText = safeSetText;
     window.safeSetValue = safeSetValue;

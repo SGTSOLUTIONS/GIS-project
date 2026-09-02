@@ -823,68 +823,41 @@ def get_default_context():
     }
 from django.http import JsonResponse
 from django.db.models import Max
-import json
-import re
+from .models import Building
 
 def get_next_gis_id(request):
-    """
-    Get the next GIS ID by finding the maximum from existing data
-    """
+    """Get the next available GIS ID in sequential order"""
     try:
-        # Get all GIS IDs from database
-        buildings = Building.objects.all().values('gis_id')
+        # Get the maximum GIS ID from existing buildings
+        # Assuming GIS_ID is stored as an integer or string that can be converted
+        max_id = Building.objects.aggregate(Max('gis_id'))['gis_id__max']
         
-        numeric_ids = []
-        
-        for building in buildings:
-            gis_id = building.get('gis_id')
-            if gis_id:
-                try:
-                    numeric_ids.append(int(gis_id))
-                except (ValueError, TypeError):
-                    numbers = re.findall(r'\d+', str(gis_id))
-                    if numbers:
-                        numeric_ids.append(int(numbers[-1]))
-        
-        # If no data in database, check the GeoJSON file
-        if not numeric_ids:
+        if max_id:
+            # If it's a number, increment it
             try:
-                import os
-                from django.conf import settings
-                
-                geojson_path = os.path.join(settings.BASE_DIR, 'static/newjson.geojson')
-                
-                with open(geojson_path, 'r') as f:
-                    geojson_data = json.load(f)
-                
-                for feature in geojson_data.get('features', []):
-                    gis_id = feature.get('properties', {}).get('GIS_ID')
-                    if gis_id:
-                        try:
-                            numeric_ids.append(int(gis_id))
-                        except:
-                            pass
-            except:
-                pass
-        
-        # Get the next ID
-        if numeric_ids:
-            max_id = max(numeric_ids)
-            next_id = max_id + 1
+                next_id = int(max_id) + 1
+            except (ValueError, TypeError):
+                # If it's a string, try to extract number
+                import re
+                numbers = re.findall(r'\d+', str(max_id))
+                if numbers:
+                    next_id = int(numbers[-1]) + 1
+                else:
+                    next_id = 1001
         else:
-            next_id = 1000  # Starting point if no data exists
+            next_id = 1000  # Starting number
         
         return JsonResponse({
             'next_id': str(next_id),
             'success': True
         })
-        
     except Exception as e:
         return JsonResponse({
-            'next_id': '1000',
+            'next_id': 'B-' + str(int(time.time())),
             'success': False,
             'error': str(e)
         })
+
 # ============================================
 # ADMIN DASHBOARD
 # ============================================
